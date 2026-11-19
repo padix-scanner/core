@@ -1,6 +1,7 @@
 package main
 
 import (
+	"core/internal/terminal"
 	"fmt"
 	"os"
 )
@@ -30,14 +31,22 @@ func main() {
 
 func printBanner() {
 	fmt.Println()
-	fmt.Println(" ____            _ _")
-	fmt.Println("|  _ \\ __ _  __| (_)_  __")
-	fmt.Println("| |_) / _` |/ _` | \\ \\/ /")
-	fmt.Println("|  __/ (_| | (_| | |>  <")
-	fmt.Println("|_|   \\__,_|\\__,_|_/_/\\_\\")
+
+	terminal.ColoredPrintln(terminal.BrightCyan, " ____            _ _")
+	terminal.ColoredPrintln(terminal.BrightCyan, "|  _ \\ __ _  __| (_)_  __")
+	terminal.ColoredPrintln(terminal.BrightCyan, "| |_) / _` |/ _` | \\ \\/ /")
+	terminal.ColoredPrintln(terminal.BrightCyan, "|  __/ (_| | (_| | |>  <")
+	terminal.ColoredPrintln(terminal.BrightCyan, "|_|   \\__,_|\\__,_|_/_/\\_\\")
 	fmt.Println()
-	fmt.Printf("%s Host Vulnerability Scanner v%s\n", appName, appVersion)
-	fmt.Println("-----------------------------------")
+
+	fmt.Printf(
+		"%s %s v%s\n",
+		terminal.BoldText("Padix"),
+		terminal.CyanText("Host Vulnerability Scanner"),
+		terminal.BoldText(appVersion),
+	)
+
+	terminal.ColoredPrintln(terminal.Dim, "-----------------------------------")
 }
 
 func printUsage() {

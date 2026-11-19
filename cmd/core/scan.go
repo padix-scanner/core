@@ -1,6 +1,9 @@
 package main
 
 import (
+	"core/internal/discovery"
+	"core/internal/terminal"
+	"core/pkg/models"
 	"flag"
 	"fmt"
 	"net"
@@ -67,16 +70,67 @@ func startScan(config ScanConfig) {
 	fmt.Println()
 	fmt.Println("[SCAN] Starting security assessment...")
 
-	// Phase 1: Service and technology discovery.
-	fmt.Println("[1/3] Service Discovery")
-	// TODO: discovery.Run(config.Target)
+	result := models.ScanResult{
+		Technologies: make([]models.Technology, 0),
+		Services:     make([]models.Service, 0),
+		Findings:     make([]models.Finding, 0),
+		CVEs:         make([]models.CVEFinding, 0),
+	}
 
+	// Phase 1: Service and technology discovery.
+	terminal.ColoredPrintln(terminal.BrightBlue,"[1/3] Service Discovery")
+	discoveryResult, err := discovery.Run(config.Target)
+	if err != nil {
+		fmt.Println("[ERROR] Discovery failed:", err)
+		return
+	}
+	result.Host = models.Host{
+		Hostname: discoveryResult.Hostname,
+	}
+
+	result.Services = discoveryResult.Services
+
+	fmt.Println("[INFO] Resolved IP:", discoveryResult.IP)
+
+	if len(result.Services) == 0 {
+		fmt.Println("[INFO] No HTTP/HTTPS services detected.")
+	}
+
+	for _, service := range result.Services {
+		fmt.Printf(
+			"[SERVICE] %s | Port: %d | State: %s\n",
+			service.Name,
+			service.Port,
+			service.State,
+		)
+
+		if service.StatusCode != 0 {
+			fmt.Printf(
+				"          HTTP Status: %d\n",
+				service.StatusCode,
+			)
+		}
+
+		if service.Product != "" {
+			fmt.Printf(
+				"          Server: %s\n",
+				service.Product,
+			)
+		}
+
+		if service.TLSVersion != "" {
+			fmt.Printf(
+				"          TLS: %s\n",
+				service.TLSVersion,
+			)
+		}
+	}
 	// Phase 2: General vulnerability assessment.
-	fmt.Println("[2/3] General Vulnerability Assessment")
+	terminal.ColoredPrintln(terminal.BrightBlue,"[2/3] General Vulnerability Assessment")
 	// TODO: checks.Run(config.Target)
 
 	// Phase 3: CVE correlation.
-	fmt.Println("[3/3] CVE Correlation")
+	terminal.ColoredPrintln(terminal.BrightBlue,"[3/3] CVE Correlation")
 	// TODO: vulnerability.Run(config.Target)
 
 	// TODO: Build models.ScanResult
