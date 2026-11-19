@@ -16,16 +16,43 @@ type Package struct {
 }
 
 type Finding struct {
-	CVE        string `json:"cve"`
-	Package    string `json:"package"`
+	ID          string `json:"id"`
+	Title       string `json:"title"`
+	Category    string `json:"category"`
+	Severity    string `json:"severity"`
+	Status      string `json:"status"`
+	Confidence  string `json:"confidence"`
+	Description string `json:"description"`
+	Evidence    string `json:"evidence,omitempty"`
+}
+
+type Technology struct {
+	Name       string `json:"name"`
 	Version    string `json:"version"`
-	Severity   string `json:"severity"`
-	Status     string `json:"status"`
+	Category   string `json:"category"`
 	Confidence string `json:"confidence"`
+	Source     string `json:"source"`
+}
+
+type CVEFinding struct {
+	CVE        string  `json:"cve"`
+	Package    string  `json:"package"`
+	Version    string  `json:"version"`
+	Severity   string  `json:"severity"`
+	CVSS       float64 `json:"cvss"`
+	Status     string  `json:"status"`
+	Confidence string  `json:"confidence"`
+}
+
+type Target struct {
+	Input    string `json:"input"`
+	IP       string `json:"ip"`
+	Hostname string `json:"hostname"`
 }
 
 type ScanResult struct {
-	Host     Host      `json:"host"`
-	Packages []Package `json:"packages"`
-	Findings []Finding `json:"findings"`
+	Host         Host         `json:"host"`
+	Technologies []Technology `json:"technologies"`
+	Findings     []Finding    `json:"findings"`
+	CVEs         []CVEFinding `json:"cves"`
 }
