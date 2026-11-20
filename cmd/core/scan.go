@@ -2,10 +2,12 @@ package main
 
 import (
 	"core/internal/discovery"
+	"core/internal/reporter"
 	"core/internal/terminal"
 	"core/pkg/models"
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"os"
@@ -78,14 +80,16 @@ func startScan(config ScanConfig) {
 	}
 
 	// Phase 1: Service and technology discovery.
-	terminal.ColoredPrintln(terminal.BrightBlue,"[1/3] Service Discovery")
+	terminal.ColoredPrintln(terminal.BrightBlue, "[1/3] Service Discovery")
 	discoveryResult, err := discovery.Run(config.Target)
+
 	if err != nil {
-		fmt.Println("[ERROR] Discovery failed:", err)
+		terminal.ColoredError("Discovery failed:", err)
 		return
 	}
 	result.Host = models.Host{
 		Hostname: discoveryResult.Hostname,
+		IP:       discoveryResult.IP,
 	}
 
 	result.Services = discoveryResult.Services
@@ -126,24 +130,57 @@ func startScan(config ScanConfig) {
 		}
 	}
 	// Phase 2: General vulnerability assessment.
-	terminal.ColoredPrintln(terminal.BrightBlue,"[2/3] General Vulnerability Assessment")
+	terminal.ColoredPrintln(terminal.BrightBlue, "[2/3] General Vulnerability Assessment")
 	// TODO: checks.Run(config.Target)
 
 	// Phase 3: CVE correlation.
-	terminal.ColoredPrintln(terminal.BrightBlue,"[3/3] CVE Correlation")
+	terminal.ColoredPrintln(terminal.BrightBlue, "[3/3] CVE Correlation")
 	// TODO: vulnerability.Run(config.Target)
 
 	// TODO: Build models.ScanResult
 	// TODO: Export using reporter.WriteJSON
 
+	// Generate final report.
+	var output *os.File
+	var writer io.Writer = os.Stdout
+
 	if config.Output != "" {
-		fmt.Println()
-		fmt.Println("[INFO] Report output:", config.Output)
+		file, err := os.Create(config.Output)
+		if err != nil {
+			terminal.ColoredError("Failed to create report:", err)
+			return
+		}
+
+		output = file
+		writer = file
 	}
 
-	fmt.Println()
-	fmt.Println("[INFO] Scan pipeline initialized.")
-	fmt.Println("[INFO] Scanner modules are not implemented yet.")
+	if output != nil {
+		defer output.Close()
+	}
+
+	switch config.Format {
+	case "text":
+		if err := reporter.WriteText(writer, result); err != nil {
+			terminal.ColoredError("Failed to generate text report:", err)
+			return
+		}
+
+	case "json":
+		if config.Output != "" {
+			if err := reporter.WriteJSON(result, config.Output); err != nil {
+				terminal.ColoredError("Failed to generate JSON report:", err)
+				return
+			}
+		} else {
+			terminal.ColoredError(
+				"JSON output requires an output file path.",
+			)
+			return
+		}
+	}
+
+	terminal.ColoredInfo("Security assessment completed.")
 }
 
 /****************************************/
