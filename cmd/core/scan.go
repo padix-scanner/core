@@ -9,7 +9,6 @@ import (
 	"core/pkg/models"
 	"flag"
 	"fmt"
-	"io"
 	"net"
 	"net/url"
 	"os"
@@ -82,7 +81,7 @@ func startScan(config ScanConfig) {
 	}
 
 	// Phase 1: Service and technology discovery.
-	terminal.ColoredPrintln(terminal.BrightBlue, "[1/3] Service Discovery")
+	terminal.ColoredPrintln(terminal.BrightBlue, "[1/4] Service Discovery")
 	discoveryResult, err := discovery.Run(config.Target)
 
 	if err != nil {
@@ -98,21 +97,8 @@ func startScan(config ScanConfig) {
 
 	fmt.Println("[INFO] Resolved IP:", discoveryResult.IP)
 
-	if len(result.Services) == 0 {
-		fmt.Println("[INFO] No HTTP/HTTPS services detected.")
-	}
-
-	for _, service := range result.Services {
-		fmt.Printf(
-			"[SERVICE] %s | Port: %d | State: %s\n",
-			service.Name,
-			service.Port,
-			service.State,
-		)
-	}
-
 	// Phase 2: General vulnerability assessment.
-	terminal.ColoredPrintln(terminal.BrightBlue, "[2/3] General Vulnerability Assessment")
+	terminal.ColoredPrintln(terminal.BrightBlue, "[2/4] General Vulnerability Assessment")
 	findings, assessErr := checks.Run(context.Background(), config.Target, result.Services)
 	if assessErr != nil {
 		terminal.ColoredError("General vulnerability assessment failed:", assessErr)
@@ -121,51 +107,12 @@ func startScan(config ScanConfig) {
 	result.Findings = append(result.Findings, findings...)
 
 	// Phase 3: CVE correlation.
-	terminal.ColoredPrintln(terminal.BrightBlue, "[3/3] CVE Correlation")
+	terminal.ColoredPrintln(terminal.BrightBlue, "[3/4] CVE Correlation")
 	// TODO: vulnerability.Run(config.Target)
 
-	// TODO: Build models.ScanResult
-	// TODO: Export using reporter.WriteJSON
-
-	// Generate final report.
-	var output *os.File
-	var writer io.Writer = os.Stdout
-
-	if config.Output != "" {
-		file, err := os.Create(config.Output)
-		if err != nil {
-			terminal.ColoredError("Failed to create report:", err)
-			return
-		}
-
-		output = file
-		writer = file
-	}
-
-	if output != nil {
-		defer output.Close()
-	}
-
-	switch config.Format {
-	case "text":
-		if err := reporter.WriteText(writer, result); err != nil {
-			terminal.ColoredError("Failed to generate text report:", err)
-			return
-		}
-
-	case "json":
-		if config.Output != "" {
-			if err := reporter.WriteJSON(result, config.Output); err != nil {
-				terminal.ColoredError("Failed to generate JSON report:", err)
-				return
-			}
-		} else {
-			terminal.ColoredError(
-				"JSON output requires an output file path.",
-			)
-			return
-		}
-	}
+	// Phase 4: Generate final report.
+	terminal.ColoredPrintln(terminal.BrightBlue, "[4/4] Generate final report")
+	reporter.GenerateReport(config.Output, config.Format, result)
 
 	terminal.ColoredInfo("Security assessment completed.")
 }

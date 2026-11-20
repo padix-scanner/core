@@ -12,8 +12,44 @@ import (
 	"core/pkg/models"
 )
 
+// Check is a single vulnerability assessment. Implementations are registered
+// in the package-level registry and applied to every matching service, so
+// adding a new check only requires implementing this interface and registering
+// it in init.
+type Check interface {
+	// Name is a short stable identifier used in logs and finding IDs.
+	Name() string
+	// Category is the finding category emitted by this check.
+	Category() string
+	// ShouldRun reports whether the check applies to the given service.
+	ShouldRun(service models.Service) bool
+	// Assess runs the check against endpoint and returns findings.
+	Assess(ctx context.Context, endpoint string) ([]models.Finding, error)
+}
+
+var registry []Check
+
+// Register appends c to the check registry.
+func Register(c Check) {
+	registry = append(registry, c)
+}
+
+func init() {
+	Register(sqli.SqliAdapter{})
+	Register(xss.XssAdapter{})
+}
+
+// buildEndpoint derives the assessment URL for an HTTP(S) service.
+func buildEndpoint(target string, service models.Service) string {
+	scheme := "http"
+	if service.Port == 443 || service.Port == 8443 {
+		scheme = "https"
+	}
+	return scheme + "://" + net.JoinHostPort(target, strconv.Itoa(service.Port)) + "/"
+}
+
 // Run performs the general vulnerability assessment against discovered
-// services. It covers SQL injection and reflected cross-site scripting
+// services by applying every registered check to each matching service.
 func Run(
 	ctx context.Context,
 	target string,
@@ -22,31 +58,21 @@ func Run(
 	var findings []models.Finding
 
 	for _, service := range services {
-		if service.Name != "HTTP" || service.State != "open" {
-			continue
-		}
+		for _, chk := range registry {
+			if !chk.ShouldRun(service) {
+				continue
+			}
 
-		scheme := "http"
-		if service.Port == 443 || service.Port == 8443 {
-			scheme = "https"
-		}
-		endpoint := scheme + "://" + net.JoinHostPort(target, strconv.Itoa(service.Port)) + "/"
+			endpoint := buildEndpoint(target, service)
 
-		serviceCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-		defer cancel()
-
-		sqliFindings, sqliErr := sqli.Assess(serviceCtx, endpoint, sqli.DefaultConfig())
-		if sqliErr != nil {
-			terminal.ColoredError("SQLi assessment failed:", sqliErr)
-		} else {
-			findings = append(findings, sqliFindings...)
-		}
-
-		xssFindings, xssErr := xss.Assess(serviceCtx, endpoint, xss.DefaultConfig())
-		if xssErr != nil {
-			terminal.ColoredError("XSS assessment failed:", xssErr)
-		} else {
-			findings = append(findings, xssFindings...)
+			serviceCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+			checkFindings, err := chk.Assess(serviceCtx, endpoint)
+			cancel()
+			if err != nil {
+				terminal.ColoredError(chk.Name()+" assessment failed:", err)
+				continue
+			}
+			findings = append(findings, checkFindings...)
 		}
 	}
 
