@@ -212,6 +212,30 @@ func analyzeHTTPResponse(
 		)
 	}
 
+	// Nginx-specific internal headers.
+	nginxHeaders := []string{
+		"X-Accel-Redirect",
+		"X-Accel-Expires",
+		"X-Accel-Limit-Rate",
+		"X-Accel-Buffering",
+		"X-Accel-Charset",
+		"X-Accel-Charset-Mapping",
+	}
+
+	for _, h := range nginxHeaders {
+		if resp.Header.Get(h) != "" {
+			add(
+				"Nginx",
+				"",
+				"web-server",
+				"high",
+				h+" header",
+			)
+
+			break
+		}
+	}
+
 	// X-Powered-By header.
 	poweredBy := resp.Header.Get("X-Powered-By")
 
@@ -263,13 +287,28 @@ func identifyServer(value string) (string, string) {
 		name    string
 	}{
 		{"nginx", "Nginx"},
+		{"nginx-plus", "Nginx Plus"},
+		{"tengine", "Tengine"},
+		{"openresty", "OpenResty"},
 		{"apache", "Apache"},
 		{"microsoft-iis", "Microsoft IIS"},
 		{"caddy", "Caddy"},
 		{"lighttpd", "Lighttpd"},
-		{"openresty", "OpenResty"},
 		{"litespeed", "LiteSpeed"},
 		{"cloudflare", "Cloudflare"},
+		{"netlify", "Netlify"},
+		{"vercel", "Vercel"},
+		{"github", "GitHub Pages"},
+		{"tomcat", "Apache Tomcat"},
+		{"jetty", "Jetty"},
+		{"gunicorn", "Gunicorn"},
+		{"uwsgi", "uWSGI"},
+		{"resin", "Resin"},
+		{"glassfish", "GlassFish"},
+		{"wildfly", "WildFly"},
+		{"weblogic", "WebLogic"},
+		{"websphere", "WebSphere"},
+		{"iis", "Microsoft IIS"},
 	}
 
 	for _, server := range servers {
@@ -376,6 +415,16 @@ func detectHTMLTechnologies(
 			`/media/system/js/`,
 			"Joomla",
 			"cms",
+		},
+		{
+			`<h1>nginx</h1>`,
+			"Nginx",
+			"web-server",
+		},
+		{
+			`nginx`,
+			"Nginx",
+			"web-server",
 		},
 	}
 
