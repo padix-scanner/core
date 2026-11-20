@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"core/internal/checks/dirlist"
 	"core/internal/checks/sqli"
 	"core/internal/checks/xss"
 	"core/internal/terminal"
@@ -37,6 +38,7 @@ func Register(c Check) {
 func init() {
 	Register(sqli.SqliAdapter{})
 	Register(xss.XssAdapter{})
+	Register(dirlist.Adapter{})
 }
 
 // buildEndpoint derives the assessment URL for an HTTP(S) service.
