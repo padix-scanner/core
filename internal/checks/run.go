@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"core/internal/checks/dirlist"
+	"core/internal/checks/exposedservices"
 	"core/internal/checks/sqli"
 	"core/internal/checks/xss"
 	"core/internal/terminal"
@@ -24,8 +25,9 @@ type Check interface {
 	Category() string
 	// ShouldRun reports whether the check applies to the given service.
 	ShouldRun(service models.Service) bool
-	// Assess runs the check against endpoint and returns findings.
-	Assess(ctx context.Context, endpoint string) ([]models.Finding, error)
+	// Assess runs the check. Implementations may use either the endpoint URL
+	// or the full service object depending on what the check needs.
+	Assess(ctx context.Context, endpoint string, service models.Service) ([]models.Finding, error)
 }
 
 var registry []Check
@@ -36,9 +38,10 @@ func Register(c Check) {
 }
 
 func init() {
-	Register(sqli.SqliAdapter{})
-	Register(xss.XssAdapter{})
+	Register(sqli.Adapter{})
+	Register(xss.Adapter{})
 	Register(dirlist.Adapter{})
+	Register(exposedservices.Adapter{})
 }
 
 // buildEndpoint derives the assessment URL for an HTTP(S) service.
@@ -66,10 +69,11 @@ func Run(
 			}
 
 			endpoint := buildEndpoint(target, service)
-
 			serviceCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-			checkFindings, err := chk.Assess(serviceCtx, endpoint)
+
+			checkFindings, err := chk.Assess(serviceCtx, endpoint, service)
 			cancel()
+
 			if err != nil {
 				terminal.ColoredError(chk.Name()+" assessment failed:", err)
 				continue

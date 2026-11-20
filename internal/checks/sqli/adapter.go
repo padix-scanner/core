@@ -5,14 +5,14 @@ import (
 	"core/pkg/models"
 )
 
-// SqliAdapter adapts the sqli package to the Check interface.
-type SqliAdapter struct{}
+// Adapter adapts the sqli package to the Check interface.
+type Adapter struct{}
 
-func (SqliAdapter) Name() string     { return "sqli" }
-func (SqliAdapter) Category() string { return "sql-injection" }
-func (SqliAdapter) ShouldRun(s models.Service) bool {
+func (Adapter) Name() string     { return "sqli" }
+func (Adapter) Category() string { return "sql-injection" }
+func (Adapter) ShouldRun(s models.Service) bool {
 	return s.Name == "HTTP" && s.State == "open"
 }
-func (SqliAdapter) Assess(ctx context.Context, endpoint string) ([]models.Finding, error) {
+func (Adapter) Assess(ctx context.Context, endpoint string, service models.Service) ([]models.Finding, error) {
 	return Assess(ctx, endpoint, DefaultConfig())
 }

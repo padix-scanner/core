@@ -9,6 +9,7 @@ type serviceName string
 
 const (
 	ServiceFTP      serviceName = "FTP"
+	ServiceTelnet   serviceName = "Telnet"
 	ServiceSSH      serviceName = "SSH"
 	ServiceSMTP     serviceName = "SMTP"
 	ServiceDNS      serviceName = "DNS"
@@ -29,6 +30,7 @@ const (
 
 var defaultServices = []serviceInfo{
 	{name: "FTP", ports: []int{21}},
+	{name: "Telnet", ports: []int{23}},
 	{name: "SSH", ports: []int{22}},
 	{name: "SMTP", ports: []int{25, 587}},
 	{name: "DNS", ports: []int{53}},

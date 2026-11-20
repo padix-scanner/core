@@ -5,14 +5,14 @@ import (
 	"core/pkg/models"
 )
 
-// XssAdapter adapts the xss package to the Check interface.
-type XssAdapter struct{}
+// Adapter adapts the xss package to the Check interface.
+type Adapter struct{}
 
-func (XssAdapter) Name() string     { return "xss" }
-func (XssAdapter) Category() string { return "xss" }
-func (XssAdapter) ShouldRun(s models.Service) bool {
+func (Adapter) Name() string     { return "xss" }
+func (Adapter) Category() string { return "xss" }
+func (Adapter) ShouldRun(s models.Service) bool {
 	return s.Name == "HTTP" && s.State == "open"
 }
-func (XssAdapter) Assess(ctx context.Context, endpoint string) ([]models.Finding, error) {
+func (Adapter) Assess(ctx context.Context, endpoint string, service models.Service) ([]models.Finding, error) {
 	return Assess(ctx, endpoint, DefaultConfig())
 }

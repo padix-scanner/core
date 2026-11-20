@@ -16,6 +16,6 @@ func (Adapter) ShouldRun(service models.Service) bool {
 	return service.Name == "HTTP" && service.State == "open"
 }
 
-func (Adapter) Assess(ctx context.Context, endpoint string) ([]models.Finding, error) {
+func (Adapter) Assess(ctx context.Context, endpoint string, service models.Service) ([]models.Finding, error) {
 	return Assess(ctx, endpoint, DefaultConfig())
 }

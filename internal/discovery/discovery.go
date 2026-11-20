@@ -75,8 +75,8 @@ func discoverService(
 		services, err = discoverFTPService(target)
 	case ServiceSMTP:
 		services, err = discoverSMTPService(target)
-		// TODO: Implement other services.
-
+	default:
+		services, err = discoverTCPService(target, serviceName)
 	}
 	if err != nil {
 		terminal.ColoredError(fmt.Printf("failed to discover %s services: %v", serviceName, err))
