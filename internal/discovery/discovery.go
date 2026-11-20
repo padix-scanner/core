@@ -73,7 +73,8 @@ func discoverService(
 		services, err = discoverSSHService(target)
 	case ServiceFTP:
 		services, err = discoverFTPService(target)
-
+	case ServiceSMTP:
+		services, err = discoverSMTPService(target)
 		// TODO: Implement other services.
 
 	}
