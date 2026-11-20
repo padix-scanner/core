@@ -35,7 +35,7 @@ func GenerateReport(outputConfig string, formatConfig string, result models.Scan
 
 	case "json":
 		if outputConfig != "" {
-			if err := WriteJSON(result, outputConfig); err != nil {
+			if err := WriteJSON(writer, result); err != nil {
 				terminal.ColoredError("Failed to generate JSON report:", err)
 				return false
 			}

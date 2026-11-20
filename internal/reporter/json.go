@@ -2,16 +2,23 @@ package reporter
 
 import (
 	"encoding/json"
-	"os"
+	"fmt"
+	"io"
 
 	"core/pkg/models"
 )
 
-func WriteJSON(result models.ScanResult, path string) error {
+func WriteJSON(w io.Writer, result models.ScanResult) error {
+	if w == nil {
+		return fmt.Errorf("report writer cannot be nil")
+	}
+
 	data, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
 		return err
 	}
 
-	return os.WriteFile(path, data, 0644)
+	data = append(data, '\n')
+	_, err = w.Write(data)
+	return err
 }

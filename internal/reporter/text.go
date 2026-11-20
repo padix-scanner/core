@@ -110,7 +110,7 @@ func WriteText(w io.Writer, result models.ScanResult) error {
 		for i, finding := range result.Findings {
 			fmt.Fprintf(w, "\n%d. %s\n", i+1, finding.Title)
 			fmt.Fprintf(w, "   ID:         %s\n", finding.ID)
-			fmt.Fprintf(w, "   Category:   %s\n", finding.Category)
+			fmt.Fprintf(w, "   Category:   %s\n", displayFindingCategory(finding.Category))
 			fmt.Fprintf(w, "   Severity:   %s\n", finding.Severity)
 			fmt.Fprintf(w, "   Status:     %s\n", finding.Status)
 			fmt.Fprintf(w, "   Confidence: %s\n", finding.Confidence)
@@ -165,6 +165,15 @@ func WriteText(w io.Writer, result models.ScanResult) error {
 	fmt.Fprintln(w, line)
 
 	return nil
+}
+
+func displayFindingCategory(category string) string {
+	switch strings.ToLower(strings.TrimSpace(category)) {
+	case "directory-listing":
+		return "Directory Listing"
+	default:
+		return category
+	}
 }
 
 func valueOrNA(value string) string {
