@@ -4,6 +4,7 @@ import (
 	"context"
 	"core/internal/checks"
 	"core/internal/discovery"
+	"core/internal/hostinfo"
 	"core/internal/reporter"
 	"core/internal/terminal"
 	"core/pkg/models"
@@ -97,6 +98,14 @@ func startScan(config ScanConfig) {
 
 	fmt.Println("[INFO] Resolved IP:", discoveryResult.IP)
 
+	// Host operating system detection.
+	hostInfo := hostinfo.DetectOS(result.Services)
+	result.Host.OS = hostInfo.OS
+	result.Host.OSVersion = hostInfo.OSVersion
+	result.Host.OSConfidence = hostInfo.OSConfidence
+
+	fmt.Println("[INFO] Operating OS:", describeOS(hostInfo))
+
 	// Phase 2: General vulnerability assessment.
 	terminal.ColoredPrintln(terminal.BrightBlue, "[2/4] General Vulnerability Assessment")
 	findings, assessErr := checks.Run(context.Background(), config.Target, result.Services)
@@ -120,6 +129,25 @@ func startScan(config ScanConfig) {
 /****************************************/
 /****************************************/
 /****************************************/
+
+// describeOS renders detected operating system details for console output.
+func describeOS(host models.Host) string {
+	if host.OS == "" {
+		return "N/A"
+	}
+
+	description := host.OS
+
+	if host.OSVersion != "" {
+		description += " (" + host.OSVersion + ")"
+	}
+
+	if host.OSConfidence != "" {
+		description += ", confidence " + host.OSConfidence
+	}
+
+	return description
+}
 
 func readTarget() string {
 	fmt.Println()

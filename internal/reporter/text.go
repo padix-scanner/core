@@ -29,6 +29,7 @@ func WriteText(w io.Writer, result models.ScanResult) error {
 	fmt.Fprintf(w, "Hostname:     %s\n", valueOrNA(result.Host.Hostname))
 	fmt.Fprintf(w, "Operating OS: %s\n", valueOrNA(result.Host.OS))
 	fmt.Fprintf(w, "OS Version:   %s\n", valueOrNA(result.Host.OSVersion))
+	fmt.Fprintf(w, "OS Confidence: %s\n", valueOrNA(result.Host.OSConfidence))
 	fmt.Fprintf(w, "Kernel:       %s\n", valueOrNA(result.Host.Kernel))
 	fmt.Fprintf(w, "Architecture: %s\n", valueOrNA(result.Host.Architecture))
 
