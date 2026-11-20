@@ -3,7 +3,7 @@ package main
 import "core/pkg/constants"
 
 const (
-	appName        = "Padix"
+	appName        = constants.AppName
 	appVersion     = constants.AppVersion
 	appCommandName = "padix"
 	appUserAgent   = constants.AppUserAgent

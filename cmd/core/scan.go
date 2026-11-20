@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"core/internal/checks"
 	"core/internal/discovery"
 	"core/internal/reporter"
 	"core/internal/terminal"
@@ -107,31 +109,16 @@ func startScan(config ScanConfig) {
 			service.Port,
 			service.State,
 		)
-
-		if service.StatusCode != 0 {
-			fmt.Printf(
-				"          HTTP Status: %d\n",
-				service.StatusCode,
-			)
-		}
-
-		if service.Product != "" {
-			fmt.Printf(
-				"          Server: %s\n",
-				service.Product,
-			)
-		}
-
-		if service.TLSVersion != "" {
-			fmt.Printf(
-				"          TLS: %s\n",
-				service.TLSVersion,
-			)
-		}
 	}
+
 	// Phase 2: General vulnerability assessment.
 	terminal.ColoredPrintln(terminal.BrightBlue, "[2/3] General Vulnerability Assessment")
-	// TODO: checks.Run(config.Target)
+	findings, assessErr := checks.Run(context.Background(), config.Target, result.Services)
+	if assessErr != nil {
+		terminal.ColoredError("General vulnerability assessment failed:", assessErr)
+		return
+	}
+	result.Findings = append(result.Findings, findings...)
 
 	// Phase 3: CVE correlation.
 	terminal.ColoredPrintln(terminal.BrightBlue, "[3/3] CVE Correlation")
