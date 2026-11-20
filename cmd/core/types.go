@@ -1,10 +1,12 @@
 package main
 
+import "core/pkg/constants"
+
 const (
 	appName        = "Padix"
-	appVersion     = "0.1.6"
+	appVersion     = constants.AppVersion
 	appCommandName = "padix"
-	appUserAgent   = "Padix-Scanner/0.1.1"
+	appUserAgent   = constants.AppUserAgent
 )
 
 type ScanConfig struct {

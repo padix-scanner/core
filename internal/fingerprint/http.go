@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"core/pkg/constants"
 	"core/pkg/models"
 )
 
@@ -138,7 +139,7 @@ func fingerprintEndpoint(
 
 	req.Header.Set(
 		"User-Agent",
-		"Padix-Scanner/0.1.1",
+		constants.AppUserAgent,
 	)
 
 	resp, err := client.Do(req)
