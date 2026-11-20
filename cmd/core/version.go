@@ -2,7 +2,7 @@ package main
 
 const (
 	appName        = "Padix"
-	appVersion     = "0.1.3"
+	appVersion     = "0.1.4"
 	appCommandName = "padix"
 )
 

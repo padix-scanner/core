@@ -69,7 +69,13 @@ func discoverService(
 	switch serviceName {
 	case ServiceHTTP:
 		services, err = discoverHttpService(target)
-		//TODO: other services
+	case ServiceSSH:
+		services, err = discoverSSHService(target)
+	case ServiceFTP:
+		services, err = discoverFTPService(target)
+
+		// TODO: Implement other services.
+
 	}
 	if err != nil {
 		terminal.ColoredError(fmt.Printf("failed to discover %s services: %v", serviceName, err))
