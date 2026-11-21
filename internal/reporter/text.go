@@ -3,11 +3,63 @@ package reporter
 import (
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 
 	"core/pkg/models"
 )
+
+// mergeExposedServices consolidates per-port exposed-service findings into
+// one entry per service type, preserving order of first appearance.
+func mergeExposedServices(findings []models.Finding) []models.Finding {
+	index := make(map[string]int) // group key -> position in out
+	out := make([]models.Finding, 0, len(findings))
+
+	for _, f := range findings {
+		if f.Category != "exposed-services" {
+			out = append(out, f)
+			continue
+		}
+
+		key := f.Category + "|" + f.Title + "|" + f.Severity + "|" + f.Status
+		pos, ok := index[key]
+		if !ok {
+			f.ID = exposedGroupID(f) // stable, port-free ID
+			index[key] = len(out)
+			out = append(out, f)
+			continue
+		}
+
+		// Append this endpoint's lines to the existing finding's evidence.
+		merged := &out[pos]
+		merged.Evidence = mergeEvidence(merged.Evidence, f.Evidence)
+	}
+	return out
+}
+
+// exposedGroupID derives a port-independent ID, e.g. exposed-service-http.
+func exposedGroupID(f models.Finding) string {
+	// f.ID currently looks like "exposed-service-http-80".
+	if i := strings.LastIndex(f.ID, "-"); i > 0 {
+		if _, err := strconv.Atoi(f.ID[i+1:]); err == nil {
+			return f.ID[:i]
+		}
+	}
+	return f.ID
+}
+
+// mergeEvidence appends a new "Service: ..." block, deduplicating the
+// repeated metadata lines (State/Product) when identical.
+func mergeEvidence(existing, addition string) string {
+	if existing == "" {
+		return addition
+	}
+	if strings.Contains(existing, addition) {
+		return existing
+	}
+	return existing + "\n\n" + addition
+}
 
 // WriteText generates a human-readable security assessment report.
 func WriteText(w io.Writer, result models.ScanResult) error {
@@ -105,10 +157,11 @@ func WriteText(w io.Writer, result models.ScanResult) error {
 	fmt.Fprintln(w, "\n[ VULNERABILITY ASSESSMENT ]")
 	fmt.Fprintln(w, separator)
 
-	if len(result.Findings) == 0 {
+	mergedFindings := mergeExposedServices(result.Findings)
+	if len(mergedFindings) == 0 {
 		fmt.Fprintln(w, "No vulnerability findings available.")
 	} else {
-		for i, finding := range result.Findings {
+		for i, finding := range mergedFindings {
 			fmt.Fprintf(w, "\n%d. %s\n", i+1, finding.Title)
 			fmt.Fprintf(w, "   ID:         %s\n", finding.ID)
 			fmt.Fprintf(w, "   Category:   %s\n", displayFindingCategory(finding.Category))
@@ -158,7 +211,7 @@ func WriteText(w io.Writer, result models.ScanResult) error {
 
 	fmt.Fprintf(w, "Discovered services:     %d\n", len(result.Services))
 	fmt.Fprintf(w, "Identified technologies: %d\n", technologyCount)
-	fmt.Fprintf(w, "Vulnerability findings:  %d\n", len(result.Findings))
+	fmt.Fprintf(w, "Vulnerability findings:  %d\n", len(mergedFindings))
 	fmt.Fprintf(w, "CVE findings:            %d\n", len(result.CVEs))
 
 	fmt.Fprintln(w, "\n"+line)
