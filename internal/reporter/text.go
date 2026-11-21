@@ -221,14 +221,7 @@ func WriteText(w io.Writer, result models.ScanResult) error {
 	return nil
 }
 
-func displayFindingCategory(category string) string {
-	switch strings.ToLower(strings.TrimSpace(category)) {
-	case "directory-listing":
-		return "Directory Listing"
-	default:
-		return category
-	}
-}
+
 
 func valueOrNA(value string) string {
 	if strings.TrimSpace(value) == "" {

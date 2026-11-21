@@ -1,4 +1,3 @@
-
 package checks
 
 import (
@@ -9,6 +8,7 @@ import (
 	"time"
 
 	"core/internal/checks/dirlist"
+	"core/internal/checks/dorks"
 	"core/internal/checks/exposedservices"
 	"core/internal/checks/sqli"
 	"core/internal/checks/xss"
@@ -34,6 +34,7 @@ func init() {
 	Register(xss.Adapter{})
 	Register(dirlist.Adapter{})
 	Register(exposedservices.Adapter{})
+	Register(dorks.Adapter{})
 }
 
 func buildEndpoint(target string, service models.Service) string {
@@ -52,6 +53,8 @@ func checkTimeout(name string) time.Duration {
 		return 45 * time.Second
 	case "directory-listing":
 		return 30 * time.Second
+	case "dorks":
+		return 5 * time.Second // pure generation, no network
 	default:
 		return 2 * time.Minute
 	}
