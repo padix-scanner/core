@@ -8,6 +8,8 @@ func displayFindingCategory(category string) string {
 		return "Directory Listing"
 	case "dorks":
 		return "OSINT / Google Dorks"
+	case "wordpress":
+		return "WordPress"
 	default:
 		return category
 	}

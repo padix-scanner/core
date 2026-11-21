@@ -11,6 +11,7 @@ import (
 	"core/internal/checks/dorks"
 	"core/internal/checks/exposedservices"
 	"core/internal/checks/sqli"
+	"core/internal/checks/wp"
 	"core/internal/checks/xss"
 	"core/internal/terminal"
 	"core/pkg/models"
@@ -35,6 +36,7 @@ func init() {
 	Register(dirlist.Adapter{})
 	Register(exposedservices.Adapter{})
 	Register(dorks.Adapter{})
+	Register(wp.Adapter{})
 }
 
 func buildEndpoint(target string, service models.Service) string {
@@ -55,6 +57,8 @@ func checkTimeout(name string) time.Duration {
 		return 30 * time.Second
 	case "dorks":
 		return 5 * time.Second // pure generation, no network
+	case "wordpress":
+		return 30 * time.Second
 	default:
 		return 2 * time.Minute
 	}
