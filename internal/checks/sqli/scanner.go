@@ -22,10 +22,10 @@ const (
 )
 
 var (
-	hrefRE  = regexp.MustCompile(`(?is)<a\b[^>]*\bhref\s*=\s*["']([^"'#]+)["']`)
-	formRE  = regexp.MustCompile(`(?is)<form\b([^>]*)>(.*?)</form\s*>`)
-	inputRE = regexp.MustCompile(`(?is)<input\b([^>]*)>`)
-	attrRE  = regexp.MustCompile(`(?is)([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*["']([^"']*)["']`)
+	hrefRE    = regexp.MustCompile(`(?is)<a\b[^>]*\bhref\s*=\s*["']([^"'#]+)["']`)
+	formRE    = regexp.MustCompile(`(?is)<form\b([^>]*)>(.*?)</form\s*>`)
+	inputRE   = regexp.MustCompile(`(?is)<input\b([^>]*)>`)
+	attrRE    = regexp.MustCompile(`(?is)([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*["']([^"']*)["']`)
 	sqlErrors = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)SQL syntax.*MySQL`),
 		regexp.MustCompile(`(?i)mysql_fetch|mysqli?_`),
@@ -61,10 +61,10 @@ type response struct {
 }
 
 type scanner struct {
-	client  *http.Client
-	cfg     Config
-	origin  *url.URL
-	visited map[string]struct{}
+	client   *http.Client
+	cfg      Config
+	origin   *url.URL
+	visited  map[string]struct{}
 	findings map[string]struct{}
 }
 
@@ -89,15 +89,15 @@ func Assess(ctx context.Context, target string, cfg Config) ([]models.Finding, e
 		cfg.UserAgent = constants.AppUserAgent
 	}
 
-// The CLI caller must only invoke active checks for an explicitly authorized target.
+	// The CLI caller must only invoke active checks for an explicitly authorized target.
 	s := &scanner{
 		cfg: cfg, origin: base,
-		visited: make(map[string]struct{}),
+		visited:  make(map[string]struct{}),
 		findings: make(map[string]struct{}),
 		client: &http.Client{
 			Timeout: cfg.Timeout,
 			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
+				TLSClientConfig:     &tls.Config{MinVersion: tls.VersionTLS12},
 				TLSHandshakeTimeout: cfg.Timeout,
 			},
 			CheckRedirect: func(*http.Request, []*http.Request) error {
@@ -124,9 +124,12 @@ func Assess(ctx context.Context, target string, cfg Config) ([]models.Finding, e
 		}
 		s.visited[key] = struct{}{}
 
-		// Test existing query parameters before crawling links.
 		if len(u.Query()) > 0 {
 			results = append(results, s.testURL(ctx, u)...)
+		}
+
+		if err := ctx.Err(); err != nil {
+			return deduplicate(results), err
 		}
 		resp, err := s.get(ctx, u)
 		if err != nil || resp.status < 200 || resp.status >= 400 {
@@ -331,14 +334,14 @@ func meaningfulDifference(a, b string) bool {
 
 func finding(kind string, u *url.URL, parameter, title, severity, confidence, description, evidence string) models.Finding {
 	return models.Finding{
-		ID: "sqli-" + kind + "-" + safeID(u.Host+u.Path+"-"+parameter),
-		Title: title,
-		Category: "sql-injection",
-		Severity: severity,
-		Status: "potential",
-		Confidence: confidence,
+		ID:          "sqli-" + kind + "-" + safeID(u.Host+u.Path+"-"+parameter),
+		Title:       title,
+		Category:    "sql-injection",
+		Severity:    severity,
+		Status:      "potential",
+		Confidence:  confidence,
 		Description: description,
-		Evidence: fmt.Sprintf("URL: %s\nParameter: %s\n%s", u.Redacted(), parameter, evidence),
+		Evidence:    fmt.Sprintf("URL: %s\nParameter: %s\n%s", u.Redacted(), parameter, evidence),
 	}
 }
 

@@ -13,7 +13,9 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 )
 
 func runScan(args []string) {
@@ -108,10 +110,20 @@ func startScan(config ScanConfig) {
 
 	// Phase 2: General vulnerability assessment.
 	terminal.ColoredPrintln(terminal.BrightBlue, "[2/4] General Vulnerability Assessment")
-	findings, assessErr := checks.Run(context.Background(), config.Target, result.Services)
+	ctx, stop := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
+		syscall.SIGTERM,
+	)
+	defer stop()
+
+	findings, assessErr := checks.Run(
+		ctx,
+		config.Target,
+		result.Services,
+	)
 	if assessErr != nil {
 		terminal.ColoredError("General vulnerability assessment failed:", assessErr)
-		return
 	}
 	result.Findings = append(result.Findings, findings...)
 
