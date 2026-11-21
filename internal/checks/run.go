@@ -56,7 +56,7 @@ func checkTimeout(name string) time.Duration {
 	case "directory-listing":
 		return 30 * time.Second
 	case "dorks":
-		return 5 * time.Second // pure generation, no network
+		return 60 * time.Second // generation + bounded DuckDuckGo Lite requests
 	case "wordpress":
 		return 30 * time.Second
 	default:

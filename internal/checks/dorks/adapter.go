@@ -3,11 +3,12 @@ package dorks
 import (
 	"context"
 	"strings"
+	"time"
 
 	"core/pkg/models"
 )
 
-// Adapter exposes the dork generator through the checks registry.
+// Adapter exposes the dork generator / requester through the checks registry.
 //
 // The check is host-level (OSINT). It runs once per open HTTP service so that
 // it participates in the normal assessment loop; findings use stable IDs and
@@ -30,7 +31,14 @@ func (Adapter) Assess(ctx context.Context, endpoint string, service models.Servi
 	if host == "" {
 		return nil, nil
 	}
-	return Assess(host), nil
+
+	cfg := DefaultConfig()
+	// Keep the live requester short so the overall scan stays responsive.
+	cfg.Timeout = 6 * time.Second
+	cfg.MaxRequests = 6
+	cfg.Request = true
+
+	return Assess(ctx, host, cfg), nil
 }
 
 func hostFromEndpoint(endpoint string) string {
