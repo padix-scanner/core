@@ -43,6 +43,9 @@ padix scan --target 192.168.1.1 --format json --output report.json
 # Update CVE database
 padix db update
 
+# Database information
+padix db status
+
 # Generate report
 padix report
 
@@ -83,3 +86,11 @@ make clean
 ## License
 
 See LICENSE for details.
+
+## TODO
+
+- [ ] Search CVE: `padix db search --query "OpenSSH"`
+
+- [ ] Search by CVE ID: `padix db search --id CVE-2024-6387`
+
+- [ ] Run correlation against local database: `padix db test --product OpenSSH --version 9.2p1`

@@ -7,6 +7,7 @@ import (
 	"core/internal/hostinfo"
 	"core/internal/reporter"
 	"core/internal/terminal"
+	"core/internal/vulnerability"
 	"core/pkg/models"
 	"flag"
 	"fmt"
@@ -129,8 +130,12 @@ func startScan(config ScanConfig) {
 
 	// Phase 3: CVE correlation.
 	terminal.ColoredPrintln(terminal.BrightBlue, "[3/4] CVE Correlation")
-	// TODO: vulnerability.Run(config.Target)
-
+	vulnEngine := vulnerability.New(config.Target)
+	vulnFindings, vulnErr := vulnEngine.Run()
+	if vulnErr != nil {
+		terminal.ColoredError("CVE vulnerability failed:", vulnErr)
+	}
+	result.CVEs = vulnFindings
 	// Phase 4: Generate final report.
 	terminal.ColoredPrintln(terminal.BrightBlue, "[4/4] Generate final report")
 	reporter.GenerateReport(config.Output, config.Format, result)
