@@ -8,6 +8,7 @@ import (
 	"core/internal/reporter"
 	"core/internal/terminal"
 	"core/internal/vulnerability"
+	"core/pkg/constants"
 	"core/pkg/models"
 	"flag"
 	"fmt"
@@ -71,7 +72,7 @@ func runScan(args []string) {
 func initCVEDB() error {
 	fmt.Println("[INIT] Initial CVE DB...")
 	ctx := context.Background()
-	db, err := vulnerability.OpenDB(ctx, "data/cve.db")
+	db, err := vulnerability.OpenDB(ctx, constants.DefaultCVEDatabasePath)
 	if err != nil {
 		return err
 	}
