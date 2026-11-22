@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"os/signal"
 	"strings"
@@ -14,6 +13,8 @@ import (
 
 	"core/internal/vulnerability"
 	"core/pkg/constants"
+
+	"github.com/schollz/progressbar/v3"
 )
 
 func runDB(args []string) error {
@@ -38,91 +39,102 @@ func runDB(args []string) error {
 }
 
 type updateProgress struct {
-	w         io.Writer
-	mu        sync.Mutex
-	lastDraw  time.Time
-	lastWidth int
-	active    bool
+	mu     sync.Mutex
+	bar    *progressbar.ProgressBar
+	phase  string
+	source string
+	last   vulnerability.UpdateProgress
 }
 
-func newUpdateProgress(w io.Writer) *updateProgress {
-	return &updateProgress{w: w}
+func newUpdateProgress() *updateProgress {
+	return &updateProgress{}
 }
 
 func (p *updateProgress) Handle(ev vulnerability.UpdateProgress) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	if time.Since(p.lastDraw) < 100*time.Millisecond &&
-		ev.Phase == "importing" && ev.Current < ev.Total {
-		return
+	if p.bar == nil || p.phase != ev.Phase || p.source != ev.Source || (ev.Phase == "importing" && p.bar.GetMax() != ev.Total) {
+		p.resetBar(ev)
+	}
+	p.last = ev
+
+	switch ev.Phase {
+	case "importing":
+		desc := fmt.Sprintf("%s imported:%d skipped:%d", ev.Source, ev.Imported, ev.Skipped)
+		p.bar.Describe(desc)
+		if ev.Total > 0 {
+			_ = p.bar.Set(ev.Current)
+		} else {
+			_ = p.bar.Add(1)
+		}
+	case "deleting":
+		desc := fmt.Sprintf("%s deleted:%d", ev.Source, ev.Deleted)
+		p.bar.Describe(desc)
+		if ev.Total > 0 {
+			_ = p.bar.Set(ev.Current)
+		} else {
+			_ = p.bar.Add(1)
+		}
+	case "diffing":
+		p.bar.Describe(fmt.Sprintf("%s diffing", ev.Source))
+		_ = p.bar.Add(1)
+	case "syncing":
+		p.bar.Describe(fmt.Sprintf("%s syncing", ev.Source))
+		_ = p.bar.Add(1)
+	default:
+		p.bar.Describe(fmt.Sprintf("%s %s", ev.Source, ev.Phase))
+		_ = p.bar.Add(1)
+	}
+}
+
+func (p *updateProgress) resetBar(ev vulnerability.UpdateProgress) {
+	if p.bar != nil {
+		_ = p.bar.Finish()
+	}
+	p.phase = ev.Phase
+	p.source = ev.Source
+
+	opts := []progressbar.Option{
+		progressbar.OptionSetWriter(os.Stderr),
+		progressbar.OptionClearOnFinish(),
+		progressbar.OptionSetWidth(24),
+		progressbar.OptionShowCount(),
 	}
 
-	line := renderUpdateProgress(ev)
-	width := len([]rune(line))
-	padding := ""
-	if p.lastWidth > width {
-		padding = strings.Repeat(" ", p.lastWidth-width)
+	switch ev.Phase {
+	case "importing", "deleting":
+		if ev.Total > 0 {
+			p.bar = progressbar.NewOptions(ev.Total, append(opts,
+				progressbar.OptionSetDescription(ev.Source),
+				progressbar.OptionSetTheme(progressbar.ThemeDefault),
+				progressbar.OptionShowIts(),
+				progressbar.OptionSetItsString("files"),
+				progressbar.OptionThrottle(100*time.Millisecond),
+				progressbar.OptionOnCompletion(func() { fmt.Fprintln(os.Stderr) }),
+			)...)
+			return
+		}
+	default:
 	}
 
-	fmt.Fprintf(p.w, "\r%s%s", line, padding)
-	p.lastWidth = width
-	p.lastDraw = time.Now()
-	p.active = true
+	p.bar = progressbar.NewOptions(-1, append(opts,
+		progressbar.OptionSetDescription(ev.Source),
+		progressbar.OptionSpinnerType(14),
+		progressbar.OptionThrottle(100*time.Millisecond),
+	)...)
 }
 
 func (p *updateProgress) Finish() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.active {
-		fmt.Fprintln(p.w)
-		p.active = false
-	}
-}
-
-func renderUpdateProgress(ev vulnerability.UpdateProgress) string {
-	label := ev.Source
-	if label == "" {
-		label = "source"
-	}
-
-	switch ev.Phase {
-	case "syncing":
-		return fmt.Sprintf("[%-10s] %s", "sync", label)
-	case "diffing":
-		return fmt.Sprintf("[%-10s] %s", "diff", label)
-	case "deleting":
-		if ev.Total > 0 {
-			return fmt.Sprintf("[%-10s] %s %d/%d deleted:%d", "delete", label, ev.Current, ev.Total, ev.Deleted)
+	if p.bar != nil {
+		if !p.bar.IsFinished() {
+			_ = p.bar.Finish()
+			fmt.Fprintln(os.Stderr)
 		}
-		return fmt.Sprintf("[%-10s] %s deleted:%d", "delete", label, ev.Deleted)
-	case "importing":
-		if ev.Total > 0 {
-			bar := progressBar(ev.Current, ev.Total, 24)
-			pct := float64(ev.Current) * 100 / float64(ev.Total)
-			return fmt.Sprintf("[%s] %5.1f%% %d/%d imported:%d skipped:%d", bar, pct, ev.Current, ev.Total, ev.Imported, ev.Skipped)
-		}
-		return fmt.Sprintf("[%-10s] %s imported:%d skipped:%d", "import", label, ev.Imported, ev.Skipped)
-	default:
-		return fmt.Sprintf("[%-10s] %s", ev.Phase, label)
+		p.bar = nil
 	}
-}
-
-func progressBar(current, total, width int) string {
-	if width <= 0 {
-		width = 24
-	}
-	if total <= 0 {
-		return strings.Repeat("-", width)
-	}
-	if current < 0 {
-		current = 0
-	}
-	if current > total {
-		current = total
-	}
-	filled := current * width / total
-	return strings.Repeat("=", filled) + strings.Repeat("-", width-filled)
 }
 
 func runDBStatus(args []string) error {
@@ -279,7 +291,7 @@ func runDBUpdate(args []string) error {
 	)
 	defer stop()
 
-	fmt.Println("Padix CVE Database Update")
+	fmt.Printf("%s CVE Database Update\n", constants.AppName)
 	fmt.Printf("Database: %s\n", *dbPath)
 
 	sources, err := vulnerability.LoadSources(*sourcesPath)
@@ -300,7 +312,7 @@ func runDBUpdate(args []string) error {
 		},
 	)
 
-	progress := newUpdateProgress(os.Stderr)
+	progress := newUpdateProgress()
 	summary, err := updater.Update(
 		ctx,
 		sources,
