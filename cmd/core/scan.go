@@ -8,6 +8,7 @@ import (
 	"core/internal/reporter"
 	"core/internal/terminal"
 	"core/internal/vulnerability"
+	"core/internal/vulnerability/cvedb"
 	"core/pkg/constants"
 	"core/pkg/models"
 	"flag"
@@ -67,19 +68,6 @@ func runScan(args []string) {
 	}
 
 	startScan(config)
-}
-
-func initCVEDB() error {
-	fmt.Println("[INIT] Initial CVE DB...")
-	ctx := context.Background()
-	db, err := vulnerability.OpenDB(ctx, constants.DefaultCVEDatabasePath)
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	vulnerability.NewCVERepository(db.GORM())
-	return nil
 }
 
 func startScan(config ScanConfig) {
@@ -166,6 +154,18 @@ func startScan(config ScanConfig) {
 /****************************************/
 /****************************************/
 /****************************************/
+func initCVEDB() error {
+	fmt.Println("[INIT] Initial CVE DB...")
+	ctx := context.Background()
+	db, err := cvedb.OpenDB(ctx, constants.DefaultCVEDatabasePath)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	cvedb.NewCVERepository(db.GORM())
+	return nil
+}
 
 // describeOS renders detected operating system details for console output.
 func describeOS(host models.Host) string {

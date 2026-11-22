@@ -12,6 +12,7 @@ import (
 
 	"core/internal/terminal"
 	"core/internal/vulnerability"
+	"core/internal/vulnerability/cvedb"
 	"core/pkg/constants"
 )
 
@@ -73,7 +74,7 @@ func runDBStatus(args []string) error {
 		return fmt.Errorf("stat database: %w", err)
 	}
 
-	db, err := vulnerability.OpenDB(ctx, *dbPath)
+	db, err := cvedb.OpenDB(ctx, *dbPath)
 	if err != nil {
 		return err
 	}
@@ -119,26 +120,6 @@ func runDBStatus(args []string) error {
 	}
 
 	return nil
-}
-
-func formatBytes(n int64) string {
-	const unit = 1024
-	if n < unit {
-		return fmt.Sprintf("%d B", n)
-	}
-	div, exp := int64(unit), 0
-	for value := n / unit; value >= unit; value /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %ciB", float64(n)/float64(div), "KMGTPE"[exp])
-}
-
-func defaultDBStatusValue(value, fallback string) string {
-	if strings.TrimSpace(value) == "" {
-		return fallback
-	}
-	return value
 }
 
 func runDBUpdate(args []string) error {
@@ -198,7 +179,7 @@ func runDBUpdate(args []string) error {
 		return err
 	}
 
-	db, err := vulnerability.OpenDB(ctx, *dbPath)
+	db, err := cvedb.OpenDB(ctx, *dbPath)
 	if err != nil {
 		return err
 	}
@@ -234,4 +215,28 @@ func runDBUpdate(args []string) error {
 	fmt.Printf("Skipped:           %d\n", summary.Skipped)
 
 	return nil
+}
+
+/**************************************/
+/**************************************/
+/**************************************/
+
+func formatBytes(n int64) string {
+	const unit = 1024
+	if n < unit {
+		return fmt.Sprintf("%d B", n)
+	}
+	div, exp := int64(unit), 0
+	for value := n / unit; value >= unit; value /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %ciB", float64(n)/float64(div), "KMGTPE"[exp])
+}
+
+func defaultDBStatusValue(value, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
 }
