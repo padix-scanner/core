@@ -30,6 +30,9 @@ run:
 scan:
 	$(GO) run $(MODULE) scan $(ARGS)
 
+db:
+	$(GO) run $(MODULE) db $(ARGS)
+
 ## Test
 
 test:

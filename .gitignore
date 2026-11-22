@@ -2,3 +2,4 @@ bin/
 repomix-output.xml
 *.txt
 data/
+description.md
