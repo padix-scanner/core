@@ -21,18 +21,18 @@ import (
 )
 
 const (
-	maxBodyBytes = 512 << 10
+	maxBodyBytes   = 512 << 10
 	defaultTimeout = 5 * time.Second
 )
 
 var (
-	generatorRE = regexp.MustCompile(`(?is)<meta[^>]+name=["']generator["'][^>]+content=["']([^"']+)["']`)
-	wpContentRE = regexp.MustCompile(`(?i)/wp-content/`)
-	wpIncludesRE = regexp.MustCompile(`(?i)/wp-includes/`)
+	generatorRE         = regexp.MustCompile(`(?is)<meta[^>]+name=["']generator["'][^>]+content=["']([^"']+)["']`)
+	wpContentRE         = regexp.MustCompile(`(?i)/wp-content/`)
+	wpIncludesRE        = regexp.MustCompile(`(?i)/wp-includes/`)
 	versionFromReadmeRE = regexp.MustCompile(`(?i)Version\s+([0-9]+\.[0-9]+(?:\.[0-9]+)?)`)
-	versionFromCSSRE = regexp.MustCompile(`(?i)Version:\s*([0-9]+\.[0-9]+(?:\.[0-9]+)?)`)
-	userJSONRE = regexp.MustCompile(`"slug"\s*:\s*"([^"]+)"`)
-	authorRedirectRE = regexp.MustCompile(`(?i)/author/([^/\s"'<>]+)`)
+	versionFromCSSRE    = regexp.MustCompile(`(?i)Version:\s*([0-9]+\.[0-9]+(?:\.[0-9]+)?)`)
+	userJSONRE          = regexp.MustCompile(`"slug"\s*:\s*"([^"]+)"`)
+	authorRedirectRE    = regexp.MustCompile(`(?i)/author/([^/\s"'<>]+)`)
 )
 
 // Config bounds request behaviour.

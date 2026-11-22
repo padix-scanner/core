@@ -397,8 +397,8 @@ func buildOracleTNSVersionProbe() []byte {
 	packet := make([]byte, payloadLen)
 	binary.BigEndian.PutUint16(packet[0:2], uint16(payloadLen))
 	binary.BigEndian.PutUint16(packet[2:4], 0) // packet checksum
-	packet[4] = 0x01                            // connect
-	packet[5] = 0x00                            // reserved
+	packet[4] = 0x01                           // connect
+	packet[5] = 0x00                           // reserved
 	binary.BigEndian.PutUint16(packet[6:8], 0x0136)
 	binary.BigEndian.PutUint16(packet[8:10], 0x012c)
 	binary.BigEndian.PutUint16(packet[10:12], 0x8000)

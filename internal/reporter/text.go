@@ -221,8 +221,6 @@ func WriteText(w io.Writer, result models.ScanResult) error {
 	return nil
 }
 
-
-
 func valueOrNA(value string) string {
 	if strings.TrimSpace(value) == "" {
 		return "N/A"

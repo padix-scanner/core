@@ -38,7 +38,6 @@ func ColoredError(values ...any) {
 	fmt.Fprint(w, Reset)
 }
 
-
 func ColoredInfo(values ...any) {
 	w := os.Stderr
 	fmt.Fprintf(w, CyanText(BoldText("[Info] ")))

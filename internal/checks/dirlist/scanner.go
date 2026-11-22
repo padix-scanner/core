@@ -30,7 +30,7 @@ var commonDirectories = []string{
 }
 
 var (
-	indexTitleRE = regexp.MustCompile(`(?is)<title[^>]*>\s*(?:index of|directory listing)\b`)
+	indexTitleRE  = regexp.MustCompile(`(?is)<title[^>]*>\s*(?:index of|directory listing)\b`)
 	indexHeaderRE = regexp.MustCompile(`(?is)<h[1-3][^>]*>\s*(?:index of|directory listing)\b`)
 	parentRE      = regexp.MustCompile(`(?is)>\s*(?:\.\./|parent directory)\s*<`)
 	columnsRE     = regexp.MustCompile(`(?is)(?:name\s+last modified\s+size|last modified\s+size\s+description)`)
@@ -39,10 +39,10 @@ var (
 
 // Config bounds the number and duration of requests made by this assessment.
 type Config struct {
-	Timeout         time.Duration
-	MaxPages        int
-	MaxDirectories  int
-	UserAgent       string
+	Timeout        time.Duration
+	MaxPages       int
+	MaxDirectories int
+	UserAgent      string
 }
 
 func DefaultConfig() Config {

@@ -2,10 +2,10 @@ package sqli
 
 import (
 	"context"
+	"core/pkg/models"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"core/pkg/models"
 	"strings"
 	"testing"
 	"time"
@@ -71,15 +71,25 @@ func (s *scanner) run(ctx context.Context) ([]models.Finding, error) {
 	for len(queue) > 0 && len(s.visited) < 10 {
 		u := queue[0]
 		queue = queue[1:]
-		if !s.sameOrigin(u) { continue }
+		if !s.sameOrigin(u) {
+			continue
+		}
 		key := canonical(u)
-		if _, ok := s.visited[key]; ok { continue }
+		if _, ok := s.visited[key]; ok {
+			continue
+		}
 		s.visited[key] = struct{}{}
-		if len(u.Query()) > 0 { results = append(results, s.testURL(ctx, u)...)}
+		if len(u.Query()) > 0 {
+			results = append(results, s.testURL(ctx, u)...)
+		}
 		resp, err := s.get(ctx, u)
-		if err != nil { continue }
+		if err != nil {
+			continue
+		}
 		for _, link := range extractLinks(resp.body) {
-			if next := resolve(u, link); next != nil && s.sameOrigin(next) { queue = append(queue, next) }
+			if next := resolve(u, link); next != nil && s.sameOrigin(next) {
+				queue = append(queue, next)
+			}
 		}
 	}
 	return deduplicate(results), nil

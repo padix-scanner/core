@@ -283,11 +283,11 @@ func Assess(ctx context.Context, target string, cfg Config) []models.Finding {
 			}
 
 			findings = append(findings, models.Finding{
-				ID:       "dork-results-" + slug(t.Category),
-				Title:    "Dork results: " + t.Category,
-				Category: "dorks",
-				Severity: "info",
-				Status:   "informational",
+				ID:         "dork-results-" + slug(t.Category),
+				Title:      "Dork results: " + t.Category,
+				Category:   "dorks",
+				Severity:   "info",
+				Status:     "informational",
 				Confidence: "medium",
 				Description: "Live search results obtained via DuckDuckGo Lite for a high-signal dork. " +
 					"Results are unauthenticated OSINT only; verify manually. " +

@@ -16,6 +16,12 @@ func main() {
 	case "scan":
 		runScan(os.Args[2:])
 
+	case "db":
+		if err := runDB(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "[ERROR] %v\n", err)
+			os.Exit(1)
+		}
+
 	case "version":
 		fmt.Printf("%s v%s\n", appName, appVersion)
 
@@ -54,7 +60,8 @@ func printUsage() {
 
 	fmt.Println()
 	fmt.Println("Usage:")
-	fmt.Printf("  %s scan [options]\n", appCommandName)
+	fmt.Printf("  %s scan [sub]\n", appCommandName)
+	fmt.Printf("  %s db [options]\n", appCommandName)
 	fmt.Printf("  %s version\n", appCommandName)
 	fmt.Printf("  %s help\n", appCommandName)
 
@@ -63,6 +70,11 @@ func printUsage() {
 	fmt.Println("  --target   Target IP or domain")
 	fmt.Println("  --format   Report format: text or json")
 	fmt.Println("  --output   Report output path")
+
+	fmt.Println()
+	fmt.Println("Db sub commands:")
+	fmt.Println("  update   Update the CVE DB")
+	fmt.Println("  status   Show CVE database information")
 
 	fmt.Println()
 	fmt.Println("Examples:")
