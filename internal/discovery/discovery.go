@@ -83,6 +83,20 @@ func discoverService(
 		services, err = discoverVNCService(target)
 	case ServiceRedis:
 		services, err = discoverRedisService(target)
+	case ServiceMySQL:
+		services, err = discoverMySQLService(target)
+	case ServicePostgres:
+		services, err = discoverPostgreSQLService(target)
+	case ServiceMSSQL:
+		services, err = discoverMSSQLService(target)
+	case ServiceOracle:
+		services, err = discoverOracleService(target)
+	case ServicePOP3:
+		services, err = discoverPOP3Service(target)
+	case ServiceIMAP:
+		services, err = discoverIMAPService(target)
+	case ServiceDNS:
+		services, err = discoverDNSService(target)
 	default:
 		services, err = discoverTCPService(target, serviceName)
 	}
