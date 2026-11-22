@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"core/internal/terminal"
-	"core/internal/vulnerability"
 	"core/internal/vulnerability/cvedb"
+	"core/internal/vulnerability/source"
 	"core/pkg/constants"
 )
 
@@ -131,11 +131,7 @@ func runDBUpdate(args []string) error {
 		constants.DefaultCVEDatabasePath,
 		"SQLite database path",
 	)
-	sourcesPath := flags.String(
-		"sources",
-		constants.DefaultCVESourceConfig,
-		"vulnerability source configuration",
-	)
+
 	cacheDir := flags.String(
 		"cache",
 		constants.DefaultCVECacheDir,
@@ -174,29 +170,23 @@ func runDBUpdate(args []string) error {
 	fmt.Fprintf(os.Stderr, "%s CVE Database Update\n", constants.AppName)
 	fmt.Fprintf(os.Stderr, "Database: %s\n", *dbPath)
 
-	sources, err := vulnerability.LoadSources(*sourcesPath)
-	if err != nil {
-		return err
-	}
-
 	db, err := cvedb.OpenDB(ctx, *dbPath)
 	if err != nil {
 		return err
 	}
 	defer db.Close()
 
-	updater := vulnerability.NewUpdater(
+	sourceManager := source.NewSourceManager(
 		db.GORM(),
-		vulnerability.UpdaterConfig{
+		source.UpdaterConfig{
 			CacheDir: *cacheDir,
 		},
 	)
 
 	progress := terminal.NewUpdateProgress()
-	summary, err := updater.Update(
+	summary, err := sourceManager.Update(
 		ctx,
-		sources,
-		vulnerability.UpdateOptions{
+		source.UpdateOptions{
 			Incremental: *incremental,
 			OnProgress:  progress.Handle,
 		},
