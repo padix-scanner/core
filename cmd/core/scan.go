@@ -68,6 +68,19 @@ func runScan(args []string) {
 	startScan(config)
 }
 
+func initCVEDB() error {
+	fmt.Println("[INIT] Initial CVE DB...")
+	ctx := context.Background()
+	db, err := vulnerability.OpenDB(ctx, "data/cve.db")
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	vulnerability.NewCVERepository(db.GORM())
+	return nil
+}
+
 func startScan(config ScanConfig) {
 	printBanner()
 
@@ -75,6 +88,12 @@ func startScan(config ScanConfig) {
 	fmt.Println("[INFO] Format:", config.Format)
 
 	fmt.Println()
+
+	cveDbErr := initCVEDB()
+	if cveDbErr != nil {
+		terminal.ColoredError("Initial CVE db failed:", cveDbErr)
+	}
+
 	fmt.Println("[SCAN] Starting security assessment...")
 
 	result := models.ScanResult{
