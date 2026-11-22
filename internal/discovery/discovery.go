@@ -75,6 +75,14 @@ func discoverService(
 		services, err = discoverFTPService(target)
 	case ServiceSMTP:
 		services, err = discoverSMTPService(target)
+	case ServiceSMB:
+		services, err = discoverSMBService(target)
+	case ServiceRDP:
+		services, err = discoverRDPService(target)
+	case ServiceVNC:
+		services, err = discoverVNCService(target)
+	case ServiceRedis:
+		services, err = discoverRedisService(target)
 	default:
 		services, err = discoverTCPService(target, serviceName)
 	}

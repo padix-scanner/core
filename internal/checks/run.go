@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"core/internal/checks/dirlist"
-	"core/internal/checks/exposedservices"
 	"core/internal/checks/sqli"
 	"core/internal/checks/wp"
 	"core/internal/checks/xss"
@@ -33,7 +32,6 @@ func init() {
 	Register(sqli.Adapter{})
 	Register(xss.Adapter{})
 	Register(dirlist.Adapter{})
-	Register(exposedservices.Adapter{})
 	// Register(dorks.Adapter{})//FIXME:
 	Register(wp.Adapter{})
 }
