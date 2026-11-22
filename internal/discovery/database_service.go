@@ -51,3 +51,36 @@ func discoverMySQLService(target string) ([]models.Service, error) {
 
 	return []models.Service{service}, nil
 }
+
+// discoverPostgreSQLService detects a PostgreSQL service on the target (port 5432).
+func discoverPostgreSQLService(target string) ([]models.Service, error) {
+	return discoverDatabaseService(target, 5432, ServicePostgres)
+}
+
+// discoverMSSQLService detects a Microsoft SQL Server service on the target (port 1433).
+func discoverMSSQLService(target string) ([]models.Service, error) {
+	return discoverDatabaseService(target, 1433, ServiceMSSQL)
+}
+
+// discoverOracleService detects an Oracle Database listener on the target (port 1521).
+func discoverOracleService(target string) ([]models.Service, error) {
+	return discoverDatabaseService(target, 1521, ServiceOracle)
+}
+
+func discoverDatabaseService(target string, port int, name serviceName) ([]models.Service, error) {
+	address := net.JoinHostPort(target, fmt.Sprint(port))
+
+	conn, err := net.DialTimeout("tcp", address, 750*time.Millisecond)
+	if err != nil {
+		return nil, nil
+	}
+	_ = conn.Close()
+
+	return []models.Service{{
+		Port:       port,
+		Protocol:   "TCP",
+		Name:       string(name),
+		State:      "open",
+		Confidence: "high",
+	}}, nil
+}
