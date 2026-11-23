@@ -138,10 +138,9 @@ func startScan(config ScanConfig) {
 
 	// Phase 3: CVE correlation.
 	terminal.ColoredPrintln(terminal.BrightBlue, "[3/4] CVE Correlation")
-	vulnEngine := vulnerability.New(config.Target)
-	vulnFindings, vulnErr := vulnEngine.Run()
+	vulnFindings, vulnErr := correlateCVEs(ctx, result.Services)
 	if vulnErr != nil {
-		terminal.ColoredError("CVE vulnerability failed:", vulnErr)
+		terminal.ColoredError("CVE correlation failed:", vulnErr)
 	}
 	result.CVEs = vulnFindings
 	// Phase 4: Generate final report.
@@ -154,6 +153,25 @@ func startScan(config ScanConfig) {
 /****************************************/
 /****************************************/
 /****************************************/
+func correlateCVEs(ctx context.Context, services []models.Service) ([]models.CVEFinding, error) {
+	db, err := cvedb.OpenDB(ctx, constants.DefaultCVEDatabasePath)
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	status, err := db.Status(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if status.CVEs == 0 {
+		return nil, fmt.Errorf("CVE database is empty; run `%s db update` first", appCommandName)
+	}
+
+	engine := vulnerability.New(cvedb.NewCVERepository(db.GORM()), vulnerability.Config{})
+	return engine.Correlate(ctx, services)
+}
+
 func initCVEDB() error {
 	fmt.Println("[INIT] Initial CVE DB...")
 	ctx := context.Background()
