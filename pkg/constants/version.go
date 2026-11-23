@@ -1,5 +1,5 @@
 package constants
 
-const AppVersion = "0.1.35"
+const AppVersion = "0.1.36"
 const AppName = "Padix"
 const AppUserAgent = AppName + "-Scanner/" + AppVersion
