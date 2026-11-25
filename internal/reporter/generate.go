@@ -45,6 +45,13 @@ func GenerateReport(outputConfig string, formatConfig string, result models.Scan
 			)
 			return false
 		}
+
+	case "markdown":
+	case "md":
+		if err := WriteMarkdown(writer, result); err != nil {
+			terminal.ColoredError("Failed to generate markdown report:", err)
+			return false
+		}
 	}
 	return true
 }

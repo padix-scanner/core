@@ -37,7 +37,7 @@ func runScan(args []string) {
 		&config.Format,
 		"format",
 		"text",
-		"Report format: text or json",
+		"Report format: text, json or markdown(md)",
 	)
 
 	fs.StringVar(
@@ -62,8 +62,8 @@ func runScan(args []string) {
 		os.Exit(1)
 	}
 
-	if config.Format != "text" && config.Format != "json" {
-		fmt.Println("[ERROR] Unsupported format. Use text or json.")
+	if config.Format != "text" && config.Format != "json" && config.Format != "markdown" && config.Format != "md" {
+		fmt.Println("[ERROR] Unsupported format. Use text, json or markdown.")
 		os.Exit(1)
 	}
 
