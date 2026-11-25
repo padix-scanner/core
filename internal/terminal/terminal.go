@@ -32,7 +32,7 @@ func ColoredFprintf(w io.Writer, color string, format string, values ...any) {
 
 func ColoredError(values ...any) {
 	w := os.Stderr
-	fmt.Fprintf(w, RedText(BoldText("[Error] ")))
+	fmt.Fprint(w, RedText(BoldText("[Error] ")))
 	fmt.Fprint(w, Red)
 	fmt.Fprintln(w, values...)
 	fmt.Fprint(w, Reset)
@@ -40,7 +40,7 @@ func ColoredError(values ...any) {
 
 func ColoredInfo(values ...any) {
 	w := os.Stderr
-	fmt.Fprintf(w, CyanText(BoldText("[Info] ")))
+	fmt.Fprint(w, CyanText(BoldText("[Info] ")))
 	fmt.Fprint(w, Cyan)
 	fmt.Fprintln(w, values...)
 	fmt.Fprint(w, Reset)
