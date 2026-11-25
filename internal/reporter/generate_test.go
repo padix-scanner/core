@@ -34,9 +34,17 @@ func TestGenerateReportJSONToFile(t *testing.T) {
 	}
 }
 
-func TestGenerateReportJSONRequiresFile(t *testing.T) {
-	if ok := GenerateReport("", "json", sampleResult()); ok {
-		t.Fatal("expected false when JSON has no output file")
+func TestGenerateReportJSONDefaultsToFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "report.json")
+	if ok := GenerateReport(path, "json", sampleResult()); !ok {
+		t.Fatal("GenerateReport returned false")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(data) == 0 {
+		t.Error("report file is empty")
 	}
 }
 

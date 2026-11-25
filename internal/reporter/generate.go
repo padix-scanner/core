@@ -8,23 +8,30 @@ import (
 )
 
 func GenerateReport(outputConfig string, formatConfig string, result models.ScanResult) bool {
+	if outputConfig == "" {
+		switch formatConfig {
+		case "json":
+			outputConfig = "report.json"
+		case "markdown", "md":
+			outputConfig = "report.md"
+		default:
+			outputConfig = "report.txt"
+		}
+	}
+
 	var output *os.File
 	var writer io.Writer = os.Stdout
 
-	if outputConfig != "" {
-		file, err := os.Create(outputConfig)
-		if err != nil {
-			terminal.ColoredError("Failed to create report:", err)
-			return false
-		}
-
-		output = file
-		writer = file
+	file, err := os.Create(outputConfig)
+	if err != nil {
+		terminal.ColoredError("Failed to create report:", err)
+		return false
 	}
 
-	if output != nil {
-		defer output.Close()
-	}
+	output = file
+	writer = file
+
+	defer output.Close()
 
 	switch formatConfig {
 	case "text":
@@ -34,20 +41,12 @@ func GenerateReport(outputConfig string, formatConfig string, result models.Scan
 		}
 
 	case "json":
-		if outputConfig != "" {
-			if err := WriteJSON(writer, result); err != nil {
-				terminal.ColoredError("Failed to generate JSON report:", err)
-				return false
-			}
-		} else {
-			terminal.ColoredError(
-				"JSON output requires an output file path.",
-			)
+		if err := WriteJSON(writer, result); err != nil {
+			terminal.ColoredError("Failed to generate JSON report:", err)
 			return false
 		}
 
-	case "markdown":
-	case "md":
+	case "markdown", "md":
 		if err := WriteMarkdown(writer, result); err != nil {
 			terminal.ColoredError("Failed to generate markdown report:", err)
 			return false
