@@ -1,0 +1,7 @@
+{
+    "php_version": "8.2.10",
+    "architecture_bits": 32,
+    "loaded_extensions": ["core", "pdo", "pdo_dblib", "mbstring"],
+    "user_input_reaches_quoting": true,
+    "input_length_constrained": false
+}
