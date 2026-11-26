@@ -22,6 +22,9 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "attcve":
+		runSimulateAttackCVE(os.Args[2:])
+
 	case "version":
 		fmt.Printf("%s v%s\n", appName, appVersion)
 

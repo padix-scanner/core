@@ -8,6 +8,7 @@ import (
 const (
 	DefaultCVESourceConfig = "sources.json"
 	DefaultCVECacheDir     = "data/vulnerability-sources"
+	DefaultExploitCVECacheDir     = "data/exploit-cves"
 )
 
 var DefaultCVEDatabasePath string

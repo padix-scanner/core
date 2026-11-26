@@ -33,3 +33,5 @@ type Package struct {
 	Architecture string `json:"architecture"`
 	Ecosystem    string `json:"ecosystem"`
 }
+
+

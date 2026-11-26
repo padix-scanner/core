@@ -1,6 +1,7 @@
 package attackchain
 
 import (
+	"core/pkg/models"
 	"fmt"
 	"strconv"
 	"strings"
@@ -155,7 +156,7 @@ func evalN5(f Facts) (bool, string, error) {
 // the resulting classification plus a full audit trail. It performs no
 // exploitation of any kind — every step is a read-only check against
 // information the caller already collected.
-func Run(chain *AttackChain, f Facts) (*Result, error) {
+func Run(chain *models.AttackChain, f Facts) (*Result, error) {
 	type step struct {
 		id   string
 		eval func(Facts) (bool, string, error)
@@ -176,7 +177,7 @@ func Run(chain *AttackChain, f Facts) (*Result, error) {
 			// A prior node already diverted us to a terminal state.
 			break
 		}
-		node, ok := chain.nodeByID(s.id)
+		node, ok := nodeByID(chain, s.id)
 		if !ok {
 			return nil, fmt.Errorf("chain definition is missing node %s", s.id)
 		}
@@ -198,8 +199,8 @@ func Run(chain *AttackChain, f Facts) (*Result, error) {
 	}
 
 	if cur == "N6" {
-		n6, _ := chain.nodeByID("N6")
-		n7, _ := chain.nodeByID("N7")
+		n6, _ := nodeByID(chain, "N6")
+		n7, _ := nodeByID(chain, "N7")
 		res.Vulnerable = true
 		res.TerminalState = "REMEDIATION_REQUIRED"
 		res.StateMeaning = chain.TerminalStates["REMEDIATION_REQUIRED"]

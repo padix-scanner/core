@@ -14,3 +14,10 @@ type ScanConfig struct {
 	Format string
 	Output string
 }
+type AttCVEConfig struct {
+	Target string
+	// Format string
+	Cve string
+}
+
+
