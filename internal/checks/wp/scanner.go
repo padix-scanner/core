@@ -28,9 +28,6 @@ const (
 )
 
 var (
-	generatorRE         = regexp.MustCompile(`(?is)<meta[^>]+name=["']generator["'][^>]+content=["']([^"']+)["']`)
-	wpContentRE         = regexp.MustCompile(`(?i)/wp-content/`)
-	wpIncludesRE        = regexp.MustCompile(`(?i)/wp-includes/`)
 	versionFromReadmeRE = regexp.MustCompile(`(?i)Version\s+([0-9]+\.[0-9]+(?:\.[0-9]+)?)`)
 	versionFromCSSRE    = regexp.MustCompile(`(?i)Version:\s*([0-9]+\.[0-9]+(?:\.[0-9]+)?)`)
 	userJSONRE          = regexp.MustCompile(`"slug"\s*:\s*"([^"]+)"`)
@@ -117,7 +114,7 @@ func Assess(ctx context.Context, target string, cfg Config) ([]models.Finding, e
 		return nil, fmt.Errorf("fetch home page: %w", err)
 	}
 
-	isWP, detectionEvidence := detectWordPress(home.body)
+	isWP, detectionEvidence := Detect(home.body)
 	if !isWP {
 		// Still probe a couple of classic paths in case the front page is
 		// heavily customised.
@@ -259,41 +256,33 @@ func summarize(origin *url.URL, detection, version, versionSource string, issues
 	}
 }
 
-func detectWordPress(body string) (bool, string) {
-	lower := strings.ToLower(body)
-	var reasons []string
-	if wpContentRE.MatchString(lower) {
-		reasons = append(reasons, "/wp-content/ present")
-	}
-	if wpIncludesRE.MatchString(lower) {
-		reasons = append(reasons, "/wp-includes/ present")
-	}
-	if m := generatorRE.FindStringSubmatch(body); len(m) > 1 &&
-		strings.Contains(strings.ToLower(m[1]), "wordpress") {
-		reasons = append(reasons, "generator meta: "+strings.TrimSpace(m[1]))
-	}
-	if strings.Contains(lower, "wp-json") || strings.Contains(lower, "wp-emoji") {
-		reasons = append(reasons, "WordPress-specific script/JSON markers")
-	}
-	if len(reasons) == 0 {
-		return false, ""
-	}
-	return true, strings.Join(reasons, "; ")
-}
+// func detectWordPress(body string) (bool, string) {
+// 	lower := strings.ToLower(body)
+// 	var reasons []string
+// 	if wpContentRE.MatchString(lower) {
+// 		reasons = append(reasons, "/wp-content/ present")
+// 	}
+// 	if wpIncludesRE.MatchString(lower) {
+// 		reasons = append(reasons, "/wp-includes/ present")
+// 	}
+// 	if m := generatorRE.FindStringSubmatch(body); len(m) > 1 &&
+// 		strings.Contains(strings.ToLower(m[1]), "wordpress") {
+// 		reasons = append(reasons, "generator meta: "+strings.TrimSpace(m[1]))
+// 	}
+// 	if strings.Contains(lower, "wp-json") || strings.Contains(lower, "wp-emoji") {
+// 		reasons = append(reasons, "WordPress-specific script/JSON markers")
+// 	}
+// 	if len(reasons) == 0 {
+// 		return false, ""
+// 	}
+// 	return true, strings.Join(reasons, "; ")
+// }
 
 func detectVersion(homeBody string, s *scanner, ctx context.Context) (string, string) {
+
 	// Generator meta is the cleanest source.
-	if m := generatorRE.FindStringSubmatch(homeBody); len(m) > 1 {
-		content := strings.TrimSpace(m[1])
-		if strings.Contains(strings.ToLower(content), "wordpress") {
-			// e.g. "WordPress 6.4.2"
-			parts := strings.Fields(content)
-			for _, p := range parts {
-				if matched, _ := regexp.MatchString(`^[0-9]+\.[0-9]`, p); matched {
-					return p, "generator meta tag"
-				}
-			}
-		}
+	if v, src := ExtractVersion(homeBody); v != "" {
+		return v, src
 	}
 
 	// readme.html

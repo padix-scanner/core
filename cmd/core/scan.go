@@ -145,7 +145,7 @@ func startScan(config ScanConfig) {
 	result.CVEs = vulnFindings
 	// Phase 4: Generate final report.
 	terminal.ColoredPrintln(terminal.BrightBlue, "[4/4] Generate final report")
-	reporter.GenerateReport(config.Output, config.Format, result)
+	generateReport(&config, &result)
 
 	terminal.ColoredInfo("Security assessment completed.")
 }
@@ -153,6 +153,32 @@ func startScan(config ScanConfig) {
 /****************************************/
 /****************************************/
 /****************************************/
+
+func generateReport(config *ScanConfig, result *models.ScanResult) {
+	if config.Output == "" {
+		switch config.Format {
+		case "json":
+			config.Output = "report.json"
+		case "markdown", "md":
+			config.Output = "report.md"
+		default:
+		}
+	}
+	reporter.GenerateReport(config.Output, config.Format, result)
+	technologyCount := 0
+
+	for _, service := range result.Services {
+		for _, _ = range service.Technologies {
+			technologyCount++
+
+		}
+	}
+	terminal.ColoredInfo("Scan Summary:")
+	terminal.ColoredPrintf(terminal.Green, fmt.Sprintf("* Discovered services:\t\t%v\n", len(result.Services)))
+	terminal.ColoredPrintf(terminal.Green, fmt.Sprintf("* Identified technologies:\t%v\n", technologyCount))
+	terminal.ColoredPrintf(terminal.Green, fmt.Sprintf("* CVE findings:\t\t\t%v\n", len(result.CVEs)))
+
+}
 func correlateCVEs(ctx context.Context, services []models.Service) ([]models.CVEFinding, error) {
 	db, err := cvedb.OpenDB(ctx, constants.DefaultCVEDatabasePath)
 	if err != nil {

@@ -8,7 +8,7 @@ import (
 	"core/pkg/models"
 )
 
-func WriteJSON(w io.Writer, result models.ScanResult) error {
+func WriteJSON(w io.Writer, result *models.ScanResult) error {
 	if w == nil {
 		return fmt.Errorf("report writer cannot be nil")
 	}

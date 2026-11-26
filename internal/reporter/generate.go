@@ -7,17 +7,8 @@ import (
 	"os"
 )
 
-func GenerateReport(outputConfig string, formatConfig string, result models.ScanResult) bool {
-	if outputConfig == "" {
-		switch formatConfig {
-		case "json":
-			outputConfig = "report.json"
-		case "markdown", "md":
-			outputConfig = "report.md"
-		default:
-			outputConfig = "report.txt"
-		}
-	}
+func GenerateReport(outputConfig string, formatConfig string, result *models.ScanResult) bool {
+	
 
 	var output *os.File
 	var writer io.Writer = os.Stdout

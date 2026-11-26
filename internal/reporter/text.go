@@ -62,7 +62,7 @@ func mergeEvidence(existing, addition string) string {
 }
 
 // WriteText generates a human-readable security assessment report.
-func WriteText(w io.Writer, result models.ScanResult) error {
+func WriteText(w io.Writer, result *models.ScanResult) error {
 	if w == nil {
 		return fmt.Errorf("report writer cannot be nil")
 	}

@@ -8,7 +8,7 @@ import (
 )
 
 // WriteMarkdown generates a markdown security assessment report.
-func WriteMarkdown(w io.Writer, result models.ScanResult) error {
+func WriteMarkdown(w io.Writer, result *models.ScanResult) error {
 	if w == nil {
 		return fmt.Errorf("report writer cannot be nil")
 	}

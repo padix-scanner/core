@@ -1,6 +1,7 @@
 package fingerprint
 
 import (
+	"core/internal/checks/wp"
 	"regexp"
 	"strings"
 )
@@ -75,16 +76,7 @@ func detectHTMLTechnologies(
 		name     string
 		category string
 	}{
-		{
-			`<meta[^>]+generator[^>]+wordpress`,
-			"WordPress",
-			"cms",
-		},
-		{
-			`/wp-content/`,
-			"WordPress",
-			"cms",
-		},
+
 		{
 			`<meta[^>]+generator[^>]+drupal`,
 			"Drupal",
@@ -132,6 +124,18 @@ func detectHTMLTechnologies(
 				"HTML content",
 			)
 		}
+	}
+
+	// WordPress: shared detection logic lives in the wp check package.
+	if found, _ := wp.Detect(html); found {
+		version, _ := wp.ExtractVersion(html)
+
+		confidence := "medium"
+		if version != "" {
+			confidence = "high"
+		}
+
+		add("WordPress", version, "cms", confidence, "HTML content")
 	}
 
 	// Framework detection.
