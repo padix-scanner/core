@@ -2,12 +2,14 @@ package main
 
 import (
 	"core/internal/attackchain"
+	"core/internal/discovery"
 	"core/internal/terminal"
 	"core/pkg/constants"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 )
 
 func runSimulateAttackCVE(args []string) {
@@ -61,6 +63,23 @@ func startSimulation(config AttCVEConfig) {
 		terminal.ColoredError("update failed: ", err)
 		os.Exit(1)
 	}
+
+	// =>discover target host facts
+	disc, err := discovery.Run(config.Target)
+	if err != nil {
+		terminal.ColoredError("discovery failed: ", err)
+		os.Exit(1)
+	}
+
+	facts := attackchain.Facts{}
+	for _, svc := range disc.Services {
+		for _, tech := range svc.Technologies {
+			if strings.EqualFold(tech.Name, "PHP") && tech.Version != "" {
+				facts.PHPVersion = tech.Version
+			}
+		}
+	}
+	//TODO: collect other facts
 	// =>find cve file
 	cveJsonFile, err := findFile(constants.DefaultExploitCVECacheDir, config.Cve)
 	if err != nil {
@@ -68,7 +87,6 @@ func startSimulation(config AttCVEConfig) {
 		os.Exit(1)
 	}
 
-	// factsPath := flag.String("facts", "", "path to a JSON file matching attackchain.Facts")
 	// =>load cve details json file
 	chain, err := attackchain.LoadChain(cveJsonFile)
 	if err != nil {
@@ -77,17 +95,6 @@ func startSimulation(config AttCVEConfig) {
 		os.Exit(1)
 	}
 
-	// factsRaw, err := os.ReadFile(*factsPath)
-	// if err != nil {
-	// 	fmt.Fprintln(os.Stderr, "error:", err)
-	// 	os.Exit(1)
-	// }
-	var facts attackchain.Facts
-	// if err := json.Unmarshal(factsRaw, &facts); err != nil {
-	// 	terminal.ColoredError("error: invalid facts file:", err)
-	// 	os.Exit(1)
-	// }
-	//FIXME:
 	result, err := attackchain.Run(chain, facts)
 	if err != nil {
 		terminal.ColoredError("error:", err)
@@ -102,7 +109,10 @@ func startSimulation(config AttCVEConfig) {
 	fmt.Println(string(out))
 
 	if result.Vulnerable {
-		//TODO: display logs
-		os.Exit(3) // distinct exit code so CI/SOAR pipelines can branch on it
+		fmt.Println("[SIMULATION] Trail:")
+		for _, o := range result.Trail {
+			fmt.Printf("  %s (%s): %v - %s\n", o.NodeID, o.Stage, o.Passed, o.Detail)
+		}
+		os.Exit(3)
 	}
 }
