@@ -9,8 +9,8 @@ import (
 	"core/pkg/models"
 )
 
-func sampleResult() models.ScanResult {
-	return models.ScanResult{
+func sampleResult() *models.ScanResult {
+	return &models.ScanResult{
 		Host: models.Host{
 			Hostname:     "web01",
 			OS:           "Linux",
@@ -85,7 +85,7 @@ func TestWriteJSON(t *testing.T) {
 }
 
 func TestWriteJSONNilWriter(t *testing.T) {
-	if err := WriteJSON(nil, models.ScanResult{}); err == nil {
+	if err := WriteJSON(nil, &models.ScanResult{}); err == nil {
 		t.Fatal("expected error for nil writer")
 	}
 }
@@ -128,14 +128,14 @@ func TestWriteTextMergesExposedServices(t *testing.T) {
 }
 
 func TestWriteTextNilWriter(t *testing.T) {
-	if err := WriteText(nil, models.ScanResult{}); err == nil {
+	if err := WriteText(nil, &models.ScanResult{}); err == nil {
 		t.Fatal("expected error for nil writer")
 	}
 }
 
 func TestWriteTextEmpty(t *testing.T) {
 	var buf bytes.Buffer
-	if err := WriteText(&buf, models.ScanResult{}); err != nil {
+	if err := WriteText(&buf, &models.ScanResult{}); err != nil {
 		t.Fatal(err)
 	}
 	out := buf.String()

@@ -57,7 +57,7 @@ func TestWriteMarkdownMergesExposedServices(t *testing.T) {
 
 func TestWriteMarkdownEmpty(t *testing.T) {
 	var buf bytes.Buffer
-	if err := WriteMarkdown(&buf, models.ScanResult{}); err != nil {
+	if err := WriteMarkdown(&buf, &models.ScanResult{}); err != nil {
 		t.Fatal(err)
 	}
 	out := buf.String()
@@ -74,7 +74,7 @@ func TestWriteMarkdownEmpty(t *testing.T) {
 }
 
 func TestWriteMarkdownNilWriter(t *testing.T) {
-	if err := WriteMarkdown(nil, models.ScanResult{}); err == nil {
+	if err := WriteMarkdown(nil, &models.ScanResult{}); err == nil {
 		t.Fatal("expected error for nil writer")
 	}
 }

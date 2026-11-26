@@ -16,7 +16,7 @@ func TestDetectWordPressFromContent(t *testing.T) {
 <meta name="generator" content="WordPress 6.4.2" />
 <link rel="stylesheet" href="/wp-content/themes/twentytwentyfour/style.css">
 </head><body></body></html>`
-	ok, evidence := detectWordPress(body)
+	ok, evidence := Detect(body)
 	if !ok {
 		t.Fatal("expected WordPress detection")
 	}
