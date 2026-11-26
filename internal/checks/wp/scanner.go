@@ -2,7 +2,8 @@
 // checks inspired by CMSeeK's WordPress deep-scan module.
 //
 // Only same-origin GET requests are issued. The check is bounded and
-// intended for authorized assessments.
+// intended for authorized assessments. All results are consolidated into a
+// single finding.
 package wp
 
 import (
@@ -12,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -60,8 +62,26 @@ type scanner struct {
 	client *http.Client
 }
 
+// issue is one individual WordPress observation. Issues are folded into the
+// single summary finding returned by Assess.
+type issue struct {
+	severity string
+	title    string
+	detail   string
+}
+
+var severityRank = map[string]int{
+	"info":     0,
+	"low":      1,
+	"medium":   2,
+	"high":     3,
+	"critical": 4,
+}
+
 // Assess runs WordPress detection and a set of high-signal checks against
-// the given target URL (scheme://host[:port]/).
+// the given target URL (scheme://host[:port]/). It returns at most one
+// finding: nil when the site is not WordPress, otherwise a summary of every
+// detection and issue.
 func Assess(ctx context.Context, target string, cfg Config) ([]models.Finding, error) {
 	base, err := url.Parse(target)
 	if err != nil || base.Host == "" ||
@@ -91,12 +111,10 @@ func Assess(ctx context.Context, target string, cfg Config) ([]models.Finding, e
 	}
 	defer s.client.CloseIdleConnections()
 
-	var findings []models.Finding
-
 	// 1. Fetch home page and detect WordPress.
 	home, err := s.get(ctx, s.origin)
 	if err != nil {
-		return findings, fmt.Errorf("fetch home page: %w", err)
+		return nil, fmt.Errorf("fetch home page: %w", err)
 	}
 
 	isWP, detectionEvidence := detectWordPress(home.body)
@@ -109,73 +127,38 @@ func Assess(ctx context.Context, target string, cfg Config) ([]models.Finding, e
 		}
 	}
 	if !isWP {
-		return findings, nil
+		return nil, nil
 	}
 
-	findings = append(findings, models.Finding{
-		ID:          "wp-detected",
-		Title:       "WordPress detected",
-		Category:    "wordpress",
-		Severity:    "info",
-		Status:      "informational",
-		Confidence:  "high",
-		Description: "The target appears to be running WordPress. Further WordPress-specific checks will be performed.",
-		Evidence:    detectionEvidence,
-	})
+	var issues []issue
 
 	// 2. Version detection.
-	if ver, src := detectVersion(home.body, s, ctx); ver != "" {
-		findings = append(findings, models.Finding{
-			ID:          "wp-version-" + safeID(ver),
-			Title:       "WordPress version identified",
-			Category:    "wordpress",
-			Severity:    "info",
-			Status:      "informational",
-			Confidence:  "medium",
-			Description: "A WordPress version string was observed. Compare against known vulnerabilities for this release.",
-			Evidence:    fmt.Sprintf("Version: %s\nSource: %s", ver, src),
-		})
-	}
+	version, versionSource := detectVersion(home.body, s, ctx)
 
 	// 3. User enumeration via REST API.
 	if users := s.enumerateUsersREST(ctx); len(users) > 0 {
-		findings = append(findings, models.Finding{
-			ID:          "wp-user-enum-rest",
-			Title:       "WordPress user enumeration via REST API",
-			Category:    "wordpress",
-			Severity:    "medium",
-			Status:      "exposed",
-			Confidence:  "high",
-			Description: "The /wp-json/wp/v2/users endpoint is publicly accessible and returns user information. Restrict it or require authentication.",
-			Evidence:    "Users: " + strings.Join(users, ", "),
+		issues = append(issues, issue{
+			severity: "medium",
+			title:    "User enumeration via REST API",
+			detail:   "/wp-json/wp/v2/users is public; users: " + strings.Join(users, ", "),
 		})
 	}
 
 	// 4. User enumeration via author parameter.
 	if users := s.enumerateUsersAuthor(ctx); len(users) > 0 {
-		findings = append(findings, models.Finding{
-			ID:          "wp-user-enum-author",
-			Title:       "WordPress user enumeration via author parameter",
-			Category:    "wordpress",
-			Severity:    "medium",
-			Status:      "exposed",
-			Confidence:  "medium",
-			Description: "Author archives or redirects leak usernames. Disable author archives or return generic responses.",
-			Evidence:    "Users: " + strings.Join(users, ", "),
+		issues = append(issues, issue{
+			severity: "medium",
+			title:    "User enumeration via author parameter",
+			detail:   "?author=N leaks usernames: " + strings.Join(users, ", "),
 		})
 	}
 
 	// 5. xmlrpc.php
 	if s.probeXMLRPC(ctx) {
-		findings = append(findings, models.Finding{
-			ID:          "wp-xmlrpc",
-			Title:       "WordPress xmlrpc.php is enabled",
-			Category:    "wordpress",
-			Severity:    "medium",
-			Status:      "exposed",
-			Confidence:  "high",
-			Description: "xmlrpc.php responds and may allow brute-force amplification or pingback abuse. Disable XML-RPC if not required.",
-			Evidence:    "Path: /xmlrpc.php returned a recognizable WordPress XML-RPC response",
+		issues = append(issues, issue{
+			severity: "medium",
+			title:    "xmlrpc.php is enabled",
+			detail:   "may allow brute-force amplification or pingback abuse",
 		})
 	}
 
@@ -183,48 +166,97 @@ func Assess(ctx context.Context, target string, cfg Config) ([]models.Finding, e
 	for _, path := range []struct {
 		p, title, sev, desc string
 	}{
-		{"/readme.html", "WordPress readme.html exposed", "low",
-			"readme.html is publicly accessible and often reveals the WordPress version."},
-		{"/license.txt", "WordPress license.txt exposed", "info",
-			"license.txt is publicly accessible."},
-		{"/wp-config.php.bak", "Possible wp-config.php backup", "high",
-			"A backup of wp-config.php appears to be reachable. This file typically contains database credentials."},
-		{"/wp-config.php.old", "Possible wp-config.php backup", "high",
-			"A backup of wp-config.php appears to be reachable."},
-		{"/wp-config.php~", "Possible wp-config.php backup", "high",
-			"A backup of wp-config.php appears to be reachable."},
-		{"/.wp-config.php.swp", "Possible wp-config.php swap file", "high",
-			"A Vim swap file for wp-config.php may be exposed."},
+		{"/readme.html", "readme.html exposed", "low", "reveals the WordPress version"},
+		{"/license.txt", "license.txt exposed", "info", "publicly accessible"},
+		{"/wp-config.php.bak", "Possible wp-config.php backup", "high", "may contain database credentials"},
+		{"/wp-config.php.old", "Possible wp-config.php backup", "high", "may contain database credentials"},
+		{"/wp-config.php~", "Possible wp-config.php backup", "high", "may contain database credentials"},
+		{"/.wp-config.php.swp", "Possible wp-config.php swap file", "high", "Vim swap file may be exposed"},
 	} {
 		if s.probePath(ctx, path.p) {
-			findings = append(findings, models.Finding{
-				ID:          "wp-file-" + safeID(path.p),
-				Title:       path.title,
-				Category:    "wordpress",
-				Severity:    path.sev,
-				Status:      "exposed",
-				Confidence:  "medium",
-				Description: path.desc,
-				Evidence:    "URL: " + s.origin.String() + strings.TrimPrefix(path.p, "/"),
+			issues = append(issues, issue{
+				severity: path.sev,
+				title:    path.title,
+				detail:   path.p + " – " + path.desc,
 			})
 		}
 	}
 
 	// 7. User registration status (light check).
 	if s.registrationOpen(ctx) {
-		findings = append(findings, models.Finding{
-			ID:          "wp-registration-open",
-			Title:       "WordPress user registration appears open",
-			Category:    "wordpress",
-			Severity:    "low",
-			Status:      "exposed",
-			Confidence:  "medium",
-			Description: "The registration form is reachable. Confirm whether public registration is intentional.",
-			Evidence:    "Path: /wp-login.php?action=register returned a registration form",
+		issues = append(issues, issue{
+			severity: "low",
+			title:    "User registration appears open",
+			detail:   "/wp-login.php?action=register returned a registration form",
 		})
 	}
 
-	return findings, nil
+	return []models.Finding{
+		summarize(s.origin, detectionEvidence, version, versionSource, issues),
+	}, nil
+}
+
+// summarize folds the detection data and all issues into one finding.
+// Severity is the highest severity among the issues; issues are listed from
+// most to least severe.
+func summarize(origin *url.URL, detection, version, versionSource string, issues []issue) models.Finding {
+	sort.SliceStable(issues, func(i, j int) bool {
+		return severityRank[issues[i].severity] > severityRank[issues[j].severity]
+	})
+
+	top := "info"
+	actionable := 0
+	for _, is := range issues {
+		if severityRank[is.severity] > severityRank[top] {
+			top = is.severity
+		}
+		if is.severity != "info" {
+			actionable++
+		}
+	}
+
+	status := "informational"
+	if actionable > 0 {
+		status = "exposed"
+	}
+
+	versionText := "version not identified"
+	if version != "" {
+		versionText = "version " + version
+	}
+
+	description := fmt.Sprintf("WordPress detected (%s).", versionText)
+	switch {
+	case actionable == 0:
+		description += " No exposure issues were found."
+	case actionable == 1:
+		description += " 1 issue found."
+	default:
+		description += fmt.Sprintf(" %d issues found.", actionable)
+	}
+	if version != "" {
+		description += " Compare the version against known vulnerabilities for this release."
+	}
+
+	var ev []string
+	ev = append(ev, "Detection: "+detection)
+	if version != "" {
+		ev = append(ev, fmt.Sprintf("Version: %s (source: %s)", version, versionSource))
+	}
+	for _, is := range issues {
+		ev = append(ev, fmt.Sprintf("[%s] %s: %s", strings.ToUpper(is.severity), is.title, is.detail))
+	}
+
+	return models.Finding{
+		ID:          "wordpress-" + safeID(origin.Host),
+		Title:       "WordPress assessment summary",
+		Category:    "wordpress",
+		Severity:    top,
+		Status:      status,
+		Confidence:  "medium",
+		Description: description,
+		Evidence:    strings.Join(ev, "\n"),
+	}
 }
 
 func detectWordPress(body string) (bool, string) {

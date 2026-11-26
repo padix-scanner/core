@@ -171,7 +171,7 @@ func WriteText(w io.Writer, result models.ScanResult) error {
 			fmt.Fprintf(w, "   Details:    %s\n", finding.Description)
 
 			if finding.Evidence != "" {
-				fmt.Fprintf(w, "   Evidence:   %s\n", finding.Evidence)
+				fmt.Fprintf(w, "   Evidence:\n      %s\n", strings.ReplaceAll(finding.Evidence, "\n", "\n      "))
 			}
 		}
 	}
