@@ -19,6 +19,6 @@ func (Adapter) ShouldRun(s models.Service) bool {
 
 func (Adapter) Assess(ctx context.Context, endpoint string, service models.Service) ([]models.Finding, error) {
 	cfg := DefaultConfig()
-	cfg.Timeout = 4 * time.Second
+	cfg.Timeout = 8 * time.Second
 	return Assess(ctx, endpoint, cfg)
 }

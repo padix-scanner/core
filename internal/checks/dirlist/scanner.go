@@ -76,7 +76,7 @@ func Assess(ctx context.Context, target string, cfg Config) ([]models.Finding, e
 		return nil, fmt.Errorf("invalid assessment URL")
 	}
 	if cfg.Timeout <= 0 {
-		cfg.Timeout = 5 * time.Second
+		cfg.Timeout = 10 * time.Second
 	}
 	if cfg.MaxPages <= 0 || cfg.MaxPages > 100 {
 		cfg.MaxPages = defaultMaxPages

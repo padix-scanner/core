@@ -3,8 +3,6 @@ package checks
 import (
 	"context"
 	"fmt"
-	"net"
-	"strconv"
 	"time"
 
 	"core/internal/checks/dirlist"
@@ -12,6 +10,7 @@ import (
 	"core/internal/checks/tlscheck"
 	"core/internal/checks/wp"
 	"core/internal/checks/xss"
+	"core/internal/httpx"
 	"core/internal/terminal"
 	"core/pkg/models"
 )
@@ -43,7 +42,8 @@ func buildEndpoint(target string, service models.Service) string {
 	if service.Port == 443 || service.Port == 8443 {
 		scheme = "https"
 	}
-	return scheme + "://" + net.JoinHostPort(target, strconv.Itoa(service.Port)) + "/"
+	// Default ports are omitted so the Host header matches what a browser sends.
+	return scheme + "://" + httpx.HostPort(scheme, target, service.Port) + "/"
 }
 
 func checkTimeout(name string) time.Duration {

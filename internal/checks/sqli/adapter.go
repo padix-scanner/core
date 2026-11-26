@@ -27,7 +27,7 @@ func (Adapter) Assess(
 ) ([]models.Finding, error) {
 	cfg := DefaultConfig()
 
-	cfg.Timeout = 4 * time.Second
+	cfg.Timeout = 8 * time.Second
 	cfg.MaxPages = 8
 	cfg.MaxParameters = 4
 

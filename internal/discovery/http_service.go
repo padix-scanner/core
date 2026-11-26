@@ -3,15 +3,14 @@ package discovery
 import (
 	"context"
 	"core/internal/fingerprint"
+	"core/internal/httpx"
 	"core/internal/terminal"
 	"core/pkg/constants"
 	"core/pkg/models"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"net"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -111,7 +110,7 @@ func probeHTTP(
 	url := fmt.Sprintf(
 		"%s://%s/",
 		scheme,
-		net.JoinHostPort(target, strconv.Itoa(port)),
+		httpx.HostPort(scheme, target, port),
 	)
 
 	req, err := http.NewRequest(

@@ -4,10 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -90,15 +88,11 @@ func fingerprintEndpoint(
 	target string,
 	endpoint httpTarget,
 ) []models.Technology {
-	address := net.JoinHostPort(
-		target,
-		strconv.Itoa(endpoint.port),
-	)
 
 	rawURL := fmt.Sprintf(
 		"%s://%s/",
 		endpoint.scheme,
-		address,
+		httpx.HostPort(endpoint.scheme, target, endpoint.port),
 	)
 
 	start, err := url.Parse(rawURL)
