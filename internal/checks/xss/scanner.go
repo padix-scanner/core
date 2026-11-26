@@ -2,7 +2,6 @@ package xss
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,6 +10,7 @@ import (
 	"time"
 
 	"core/internal/checks/crawl"
+	"core/internal/httpx"
 	"core/pkg/constants"
 	"core/pkg/models"
 )
@@ -60,7 +60,7 @@ type scanner struct {
 // they appear verbatim in the response body.
 func Assess(ctx context.Context, target string, cfg Config) ([]models.Finding, error) {
 	base, err := url.Parse(target)
-	if err != nil || base.Host == "" || (base.Scheme != "http" && base.Scheme != "https") {
+	if err != nil || base.Host == "" || (base.Scheme != "http" && base.Scheme != "https") || base.User != nil {
 		return nil, fmt.Errorf("invalid assessment URL")
 	}
 	if cfg.Timeout <= 0 {
@@ -76,24 +76,24 @@ func Assess(ctx context.Context, target string, cfg Config) ([]models.Finding, e
 		cfg.UserAgent = constants.AppUserAgent
 	}
 
+	// Follow same-site redirects once up front and use the origin the site
+	// really serves from. An unreachable target is an error, not "no findings".
+	origin, err := httpx.ResolveOrigin(ctx, base, cfg.Timeout, cfg.UserAgent)
+	if err != nil {
+		return nil, err
+	}
+
 	s := &scanner{
 		cfg:    cfg,
-		origin: base,
-		client: &http.Client{
-			Timeout: cfg.Timeout,
-			Transport: &http.Transport{
-				TLSClientConfig:     &tls.Config{MinVersion: tls.VersionTLS12},
-				TLSHandshakeTimeout: cfg.Timeout,
-			},
-			CheckRedirect: func(*http.Request, []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		},
+		origin: origin,
+		client: httpx.NewClient(cfg.Timeout, func(next *url.URL) bool {
+			return crawl.SameOrigin(next, origin)
+		}),
 	}
 	defer s.client.CloseIdleConnections()
 
 	var results []models.Finding
-	err = crawl.Crawl(ctx, base, cfg.MaxPages, s.fetch, func(u *url.URL, body string) error {
+	err = crawl.Crawl(ctx, origin, cfg.MaxPages, s.fetch, func(u *url.URL, body string) error {
 		if len(u.Query()) > 0 {
 			results = append(results, s.testURL(ctx, u)...)
 		}
@@ -110,7 +110,8 @@ func (s *scanner) fetch(ctx context.Context, u *url.URL) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if resp.status < 200 || resp.status >= 400 {
+	// In-origin redirects were already followed; a remaining 3xx leaves the origin.
+	if resp.status < 200 || resp.status >= 300 {
 		return "", fmt.Errorf("non-2xx status: %d", resp.status)
 	}
 	return resp.body, nil

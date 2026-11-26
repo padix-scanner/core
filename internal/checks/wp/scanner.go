@@ -7,7 +7,6 @@ package wp
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"core/internal/httpx"
 	"core/pkg/constants"
 	"core/pkg/models"
 )
@@ -51,7 +51,7 @@ func DefaultConfig() Config {
 type response struct {
 	status int
 	body   string
-	final  string // final URL after redirects (we disable auto-follow)
+	final  string // final URL after (same-origin) redirects
 }
 
 type scanner struct {
@@ -75,28 +75,28 @@ func Assess(ctx context.Context, target string, cfg Config) ([]models.Finding, e
 		cfg.UserAgent = constants.AppUserAgent
 	}
 
+	// Follow same-site redirects once up front and use the origin the site
+	// really serves from. An unreachable target is an error, not "no findings".
+	origin, err := httpx.ResolveOrigin(ctx, base, cfg.Timeout, cfg.UserAgent)
+	if err != nil {
+		return nil, err
+	}
+
 	s := &scanner{
 		cfg:    cfg,
-		origin: base,
-		client: &http.Client{
-			Timeout: cfg.Timeout,
-			Transport: &http.Transport{
-				TLSClientConfig:     &tls.Config{MinVersion: tls.VersionTLS12},
-				TLSHandshakeTimeout: cfg.Timeout,
-			},
-			CheckRedirect: func(*http.Request, []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		},
+		origin: origin,
+		client: httpx.NewClient(cfg.Timeout, func(next *url.URL) bool {
+			return sameOrigin(next, origin)
+		}),
 	}
 	defer s.client.CloseIdleConnections()
 
 	var findings []models.Finding
 
 	// 1. Fetch home page and detect WordPress.
-	home, err := s.get(ctx, base)
+	home, err := s.get(ctx, s.origin)
 	if err != nil {
-		return findings, nil
+		return findings, fmt.Errorf("fetch home page: %w", err)
 	}
 
 	isWP, detectionEvidence := detectWordPress(home.body)
@@ -331,18 +331,19 @@ func (s *scanner) enumerateUsersAuthor(ctx context.Context) []string {
 		if err != nil {
 			continue
 		}
-		// 301/302 to /author/slug/ or body contains /author/slug/
-		if resp.status >= 300 && resp.status < 400 {
-			// Location header is not available from our limited response;
-			// fall through to body scan of the (possible) error page.
-		}
-		if m := authorRedirectRE.FindStringSubmatch(resp.body); len(m) > 1 {
-			slug := strings.TrimSpace(m[1])
-			if slug != "" {
+		// The client follows ?author=N → /author/<slug>/ inside the origin, so
+		// the final URL (and the archive page body) carries the slug.
+		for _, candidate := range []string{resp.final, resp.body} {
+			if m := authorRedirectRE.FindStringSubmatch(candidate); len(m) > 1 {
+				slug := strings.TrimSpace(m[1])
+				if slug == "" {
+					continue
+				}
 				if _, ok := seen[slug]; !ok {
 					seen[slug] = struct{}{}
 					users = append(users, slug)
 				}
+				break
 			}
 		}
 	}

@@ -9,6 +9,7 @@ import (
 
 	"core/internal/checks/dirlist"
 	"core/internal/checks/sqli"
+	"core/internal/checks/tlscheck"
 	"core/internal/checks/wp"
 	"core/internal/checks/xss"
 	"core/internal/terminal"
@@ -29,6 +30,7 @@ func Register(c Check) {
 }
 
 func init() {
+	Register(tlscheck.Adapter{})
 	Register(sqli.Adapter{})
 	Register(xss.Adapter{})
 	Register(dirlist.Adapter{})
@@ -46,6 +48,8 @@ func buildEndpoint(target string, service models.Service) string {
 
 func checkTimeout(name string) time.Duration {
 	switch name {
+	case "tls":
+		return 5 * time.Second
 	case "sqli":
 		return 45 * time.Second
 	case "xss":

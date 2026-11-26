@@ -2,15 +2,16 @@ package fingerprint
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
+	"core/internal/httpx"
 	"core/pkg/constants"
 	"core/pkg/models"
 )
@@ -94,38 +95,30 @@ func fingerprintEndpoint(
 		strconv.Itoa(endpoint.port),
 	)
 
-	url := fmt.Sprintf(
+	rawURL := fmt.Sprintf(
 		"%s://%s/",
 		endpoint.scheme,
 		address,
 	)
 
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			ServerName: target,
-			MinVersion: tls.VersionTLS12,
-		},
-		TLSHandshakeTimeout: 4 * time.Second,
+	start, err := url.Parse(rawURL)
+	if err != nil {
+		return nil
 	}
 
-	defer transport.CloseIdleConnections()
-
-	client := &http.Client{
-		Transport: transport,
-		Timeout:   8 * time.Second,
-
-		CheckRedirect: func(
-			req *http.Request,
-			via []*http.Request,
-		) error {
-			return http.ErrUseLastResponse
-		},
-	}
+	// Follow same-site redirects (http→https, www↔apex) so headers and HTML of
+	// the page that is really served are analysed, not an empty 301 body.
+	// Certificate errors are ignored here; they are reported by the TLS check.
+	client := httpx.NewClient(
+		8*time.Second,
+		func(next *url.URL) bool { return httpx.SameSite(next, start) },
+	)
+	defer client.CloseIdleConnections()
 
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodGet,
-		url,
+		rawURL,
 		nil,
 	)
 	if err != nil {

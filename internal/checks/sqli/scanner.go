@@ -2,7 +2,6 @@ package sqli
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"core/internal/httpx"
 	"core/pkg/constants"
 	"core/pkg/models"
 )
@@ -89,25 +89,26 @@ func Assess(ctx context.Context, target string, cfg Config) ([]models.Finding, e
 		cfg.UserAgent = constants.AppUserAgent
 	}
 
+	// Follow same-site redirects (http→https, www↔apex, ...) once up front and
+	// use the origin the site really serves from for the whole assessment.
+	// An unreachable target is an error, not an empty result.
+	origin, err := httpx.ResolveOrigin(ctx, base, cfg.Timeout, cfg.UserAgent)
+	if err != nil {
+		return nil, err
+	}
+
 	// The CLI caller must only invoke active checks for an explicitly authorized target.
 	s := &scanner{
-		cfg: cfg, origin: base,
+		cfg: cfg, origin: origin,
 		visited:  make(map[string]struct{}),
 		findings: make(map[string]struct{}),
-		client: &http.Client{
-			Timeout: cfg.Timeout,
-			Transport: &http.Transport{
-				TLSClientConfig:     &tls.Config{MinVersion: tls.VersionTLS12},
-				TLSHandshakeTimeout: cfg.Timeout,
-			},
-			CheckRedirect: func(*http.Request, []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		},
+		client: httpx.NewClient(cfg.Timeout, func(next *url.URL) bool {
+			return isSameOrigin(next, origin)
+		}),
 	}
 	defer s.client.CloseIdleConnections()
 
-	queue := []*url.URL{base}
+	queue := []*url.URL{origin}
 	var results []models.Finding
 	for len(queue) > 0 && len(s.visited) < cfg.MaxPages {
 		if err := ctx.Err(); err != nil {
@@ -132,7 +133,9 @@ func Assess(ctx context.Context, target string, cfg Config) ([]models.Finding, e
 			return deduplicate(results), err
 		}
 		resp, err := s.get(ctx, u)
-		if err != nil || resp.status < 200 || resp.status >= 400 {
+		// Redirects inside the origin were already followed by the client; a 3xx
+		// here means the redirect leaves the origin, so there is nothing to crawl.
+		if err != nil || resp.status < 200 || resp.status >= 300 {
 			continue
 		}
 		for _, link := range extractLinks(resp.body) {
@@ -226,8 +229,12 @@ func (s *scanner) get(ctx context.Context, u *url.URL) (response, error) {
 }
 
 func (s *scanner) sameOrigin(u *url.URL) bool {
-	return u != nil && strings.EqualFold(u.Scheme, s.origin.Scheme) &&
-		strings.EqualFold(u.Host, s.origin.Host) && u.User == nil
+	return isSameOrigin(u, s.origin)
+}
+
+func isSameOrigin(u, origin *url.URL) bool {
+	return u != nil && strings.EqualFold(u.Scheme, origin.Scheme) &&
+		strings.EqualFold(u.Host, origin.Host) && u.User == nil
 }
 
 func extractLinks(body string) []string {
@@ -246,14 +253,22 @@ func extractGETForms(page *url.URL, body string) []*url.URL {
 		if method := strings.ToUpper(attrs["method"]); method != "" && method != http.MethodGet {
 			continue // POST/PUT forms are deliberately not submitted.
 		}
-		action := page
+
+		// Never mutate the page URL: it is shared with the crawl loop, and
+		// setting RawQuery on it would leak this form's fields into every
+		// later form (and into the page URL itself).
+		action := cloneURL(page)
 		if raw := attrs["action"]; raw != "" {
-			action = resolve(page, raw)
+			action = resolve(page, raw) // returns a fresh URL
 		}
 		if action == nil {
 			continue
 		}
-		q := action.Query()
+
+		// A GET form replaces the action's query string with its own fields
+		// (browser behaviour), so start from an empty set instead of
+		// inheriting the page's query.
+		q := url.Values{}
 		for _, input := range inputRE.FindAllStringSubmatch(form[2], 50) {
 			a := attributes(input[1])
 			name := a["name"]
@@ -265,6 +280,7 @@ func extractGETForms(page *url.URL, body string) []*url.URL {
 			}
 		}
 		action.RawQuery = q.Encode()
+		action.Fragment = ""
 		if len(q) > 0 {
 			out = append(out, action)
 		}

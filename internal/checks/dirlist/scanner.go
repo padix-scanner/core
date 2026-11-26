@@ -3,7 +3,6 @@ package dirlist
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"core/internal/checks/crawl"
+	"core/internal/httpx"
 	"core/pkg/constants"
 	"core/pkg/models"
 )
@@ -67,7 +67,8 @@ type scanner struct {
 }
 
 // Assess crawls the target and checks a bounded set of common directory paths.
-// It only issues GET requests to the exact origin supplied by the caller.
+// It only issues GET requests to the origin the target serves from (after
+// following same-site redirects such as http→https).
 func Assess(ctx context.Context, target string, cfg Config) ([]models.Finding, error) {
 	base, err := url.Parse(target)
 	if err != nil || base.Host == "" ||
@@ -87,19 +88,19 @@ func Assess(ctx context.Context, target string, cfg Config) ([]models.Finding, e
 		cfg.UserAgent = constants.AppUserAgent
 	}
 
-	transport := &http.Transport{
-		TLSClientConfig:     &tls.Config{MinVersion: tls.VersionTLS12},
-		TLSHandshakeTimeout: cfg.Timeout,
+	// Follow same-site redirects once up front and use the origin the site
+	// really serves from. An unreachable target is an error, not "no findings".
+	origin, err := httpx.ResolveOrigin(ctx, base, cfg.Timeout, cfg.UserAgent)
+	if err != nil {
+		return nil, err
 	}
+	base = origin
+
 	s := &scanner{
-		cfg: cfg, origin: base,
-		client: &http.Client{
-			Transport: transport,
-			Timeout:   cfg.Timeout,
-			CheckRedirect: func(*http.Request, []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		},
+		cfg: cfg, origin: origin,
+		client: httpx.NewClient(cfg.Timeout, func(next *url.URL) bool {
+			return crawl.SameOrigin(next, origin)
+		}),
 	}
 	defer s.client.CloseIdleConnections()
 
