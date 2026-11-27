@@ -12,11 +12,11 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
 func discoverHttpService(target string) ([]models.Service, error) {
-	var services []models.Service
 	var httpPorts []int
 	// Collect HTTP ports.
 	for _, service := range defaultServices {
@@ -30,40 +30,51 @@ func discoverHttpService(target string) ([]models.Service, error) {
 		30*time.Second,
 	)
 	defer cancel()
-	// Discover HTTP services.
-	for _, port := range httpPorts {
-		useTLS := port == 443 || port == 8443
-		service := &models.Service{
-			Port:       port,
-			Protocol:   "TCP",
-			Name:       string(ServiceHTTP),
-			State:      "open",
-			Confidence: "high",
-		}
 
-		if err := probeHTTP(target, port, useTLS, service); err != nil {
-			continue
-		}
-		// Fingerprint discovered HTTP service.
-		technologies, err := fingerprint.FingerprintHTTP(
-			ctx,
-			target,
-			port,
-		)
+	// Probe all HTTP ports concurrently; each goroutine owns one slot.
+	results := make([]*models.Service, len(httpPorts))
+	var wg sync.WaitGroup
 
-		if err != nil {
-			terminal.ColoredError(
-				"HTTP fingerprinting failed:", err,
-			)
-		} else {
-			service.Technologies = technologies
-		}
+	for i, port := range httpPorts {
+		wg.Add(1)
 
-		services = append(services, *service)
+		go func(i, port int) {
+			defer wg.Done()
+
+			useTLS := port == 443 || port == 8443
+			service := &models.Service{
+				Port:       port,
+				Protocol:   "TCP",
+				Name:       string(ServiceHTTP),
+				State:      "open",
+				Confidence: "high",
+			}
+
+			if err := probeHTTP(target, port, useTLS, service); err != nil {
+				return
+			}
+
+			// Fingerprint discovered HTTP service.
+			technologies, err := fingerprint.FingerprintHTTP(ctx, target, port)
+			if err != nil {
+				terminal.ColoredError("HTTP fingerprinting failed:", err)
+			} else {
+				service.Technologies = technologies
+			}
+
+			results[i] = service
+		}(i, port)
+	}
+	wg.Wait()
+
+	services := make([]models.Service, 0, len(results))
+	for _, svc := range results {
+		if svc != nil {
+			services = append(services, *svc)
+		}
 	}
 
 	return services, nil
-
 }
 
 // probeHTTP collects basic HTTP and TLS information.

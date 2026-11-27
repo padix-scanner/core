@@ -1,47 +1,45 @@
 package reporter
 
 import (
-	"core/internal/terminal"
-	"core/pkg/models"
 	"io"
 	"os"
+	"strings"
+
+	"core/internal/terminal"
+	"core/pkg/models"
 )
 
-func GenerateReport(outputConfig string, formatConfig string, result *models.ScanResult) bool {
-	
-
-	var output *os.File
+// GenerateReport writes the report to outputPath. When outputPath is empty
+// the report is written to stdout.
+func GenerateReport(outputPath string, format string, result *models.ScanResult) bool {
 	var writer io.Writer = os.Stdout
 
-	file, err := os.Create(outputConfig)
-	if err != nil {
-		terminal.ColoredError("Failed to create report:", err)
+	if strings.TrimSpace(outputPath) != "" {
+		file, err := os.Create(outputPath)
+		if err != nil {
+			terminal.ColoredError("Failed to create report:", err)
+			return false
+		}
+		defer file.Close()
+		writer = file
+	}
+
+	var err error
+	switch format {
+	case "text":
+		err = WriteText(writer, result)
+	case "json":
+		err = WriteJSON(writer, result)
+	case "markdown", "md":
+		err = WriteMarkdown(writer, result)
+	default:
+		terminal.ColoredError("Unsupported report format:", format)
 		return false
 	}
 
-	output = file
-	writer = file
-
-	defer output.Close()
-
-	switch formatConfig {
-	case "text":
-		if err := WriteText(writer, result); err != nil {
-			terminal.ColoredError("Failed to generate text report:", err)
-			return false
-		}
-
-	case "json":
-		if err := WriteJSON(writer, result); err != nil {
-			terminal.ColoredError("Failed to generate JSON report:", err)
-			return false
-		}
-
-	case "markdown", "md":
-		if err := WriteMarkdown(writer, result); err != nil {
-			terminal.ColoredError("Failed to generate markdown report:", err)
-			return false
-		}
+	if err != nil {
+		terminal.ColoredError("Failed to generate "+format+" report:", err)
+		return false
 	}
 	return true
 }

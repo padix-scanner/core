@@ -3,6 +3,7 @@ package checks
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"core/internal/checks/dirlist"
@@ -14,6 +15,10 @@ import (
 	"core/internal/terminal"
 	"core/pkg/models"
 )
+
+// DefaultWorkers is the number of checks that run concurrently. Active checks
+// send real traffic to the target, so keep this modest.
+const DefaultWorkers = 4
 
 type Check interface {
 	Name() string
@@ -82,53 +87,79 @@ func execute(
 	return chk.Assess(ctx, endpoint, service)
 }
 
+type job struct {
+	chk      Check
+	service  models.Service
+	endpoint string
+}
+
+// Run executes all applicable checks with the default concurrency.
 func Run(
 	ctx context.Context,
 	target string,
 	services []models.Service,
 ) ([]models.Finding, error) {
-	var findings []models.Finding
+	return RunWithWorkers(ctx, target, services, DefaultWorkers)
+}
 
+// RunWithWorkers runs every applicable (service, check) pair on a bounded
+// worker pool. Findings are returned in the same order a sequential run
+// would produce, regardless of which job finishes first.
+func RunWithWorkers(
+	ctx context.Context,
+	target string,
+	services []models.Service,
+	workers int,
+) ([]models.Finding, error) {
+	if workers <= 0 {
+		workers = DefaultWorkers
+	}
+
+	var jobs []job
 	for _, service := range services {
-		if err := ctx.Err(); err != nil {
-			break
-		}
-
 		for _, chk := range registry {
-			if err := ctx.Err(); err != nil {
-				break
-			}
-
-			if !chk.ShouldRun(service) {
-				continue
-			}
-
-			endpoint := buildEndpoint(target, service)
-			serviceCtx, cancel := context.WithTimeout(
-				ctx,
-				checkTimeout(chk.Name()),
-			)
-
-			checkFindings, err := execute(
-				serviceCtx,
-				chk,
-				endpoint,
-				service,
-			)
-
-			cancel()
-
-			findings = append(findings, checkFindings...)
-
-			if err != nil {
-				terminal.ColoredError(
-					chk.Name()+" assessment failed:",
-					err,
-				)
-				continue
+			if chk.ShouldRun(service) {
+				jobs = append(jobs, job{
+					chk:      chk,
+					service:  service,
+					endpoint: buildEndpoint(target, service),
+				})
 			}
 		}
 	}
 
+	results := make([][]models.Finding, len(jobs))
+	sem := make(chan struct{}, workers)
+	var wg sync.WaitGroup
+
+dispatch:
+	for i, j := range jobs {
+		select {
+		case <-ctx.Done():
+			break dispatch
+		case sem <- struct{}{}:
+		}
+
+		wg.Add(1)
+		go func(i int, j job) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			checkCtx, cancel := context.WithTimeout(ctx, checkTimeout(j.chk.Name()))
+			defer cancel()
+
+			found, err := execute(checkCtx, j.chk, j.endpoint, j.service)
+			if err != nil {
+				terminal.ColoredError(j.chk.Name()+" assessment failed:", err)
+			}
+			results[i] = found
+		}(i, j)
+	}
+	wg.Wait()
+
+	var findings []models.Finding
+	for _, r := range results {
+		findings = append(findings, r...)
+	}
 	return findings, nil
 }

@@ -4,11 +4,15 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sync"
 	"time"
 
 	"core/internal/terminal"
 	"core/pkg/models"
 )
+
+// DefaultWorkers is the number of services probed concurrently.
+const DefaultWorkers = 8
 
 type Result struct {
 	Hostname string
@@ -16,8 +20,19 @@ type Result struct {
 	Services []models.Service
 }
 
-// Run performs DNS and common TCP service discovery.
+// Run performs DNS and common TCP service discovery with the default
+// concurrency.
 func Run(target string) (Result, error) {
+	return RunWithWorkers(target, DefaultWorkers)
+}
+
+// RunWithWorkers is like Run but lets the caller bound concurrency.
+// The order of the returned services always follows defaultServices.
+func RunWithWorkers(target string, workers int) (Result, error) {
+	if workers <= 0 {
+		workers = DefaultWorkers
+	}
+
 	result := Result{
 		Hostname: target,
 		Services: make([]models.Service, 0),
@@ -41,19 +56,26 @@ func Run(target string) (Result, error) {
 
 	result.IP = ips[0].IP.String()
 
-	// Discover services and their associated ports.
-	for _, service := range defaultServices {
+	// Probe every known service concurrently. Each goroutine writes only to
+	// its own slot, so no lock is needed and ordering stays deterministic.
+	found := make([][]models.Service, len(defaultServices))
+	sem := make(chan struct{}, workers)
+	var wg sync.WaitGroup
 
-		found := discoverService(
-			target,
-			service.name,
-		)
+	for i, svc := range defaultServices {
+		wg.Add(1)
+		sem <- struct{}{}
 
-		result.Services = append(
-			result.Services,
-			found...,
-		)
+		go func(i int, name serviceName) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			found[i] = discoverService(target, name)
+		}(i, svc.name)
+	}
+	wg.Wait()
 
+	for _, services := range found {
+		result.Services = append(result.Services, services...)
 	}
 
 	return result, nil
@@ -101,7 +123,9 @@ func discoverService(
 		services, err = discoverTCPService(target, serviceName)
 	}
 	if err != nil {
-		terminal.ColoredError(fmt.Printf("failed to discover %s services: %v", serviceName, err))
+		terminal.ColoredError(
+			fmt.Sprintf("failed to discover %s services: %v", serviceName, err),
+		)
 		return nil
 	}
 
