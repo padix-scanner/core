@@ -27,6 +27,7 @@ func GenerateReport(outputPath string, format string, result *models.ScanResult)
 	var err error
 	switch format {
 	case "text":
+	case "txt":
 		err = WriteText(writer, result)
 	case "json":
 		err = WriteJSON(writer, result)
