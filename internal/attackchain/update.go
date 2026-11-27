@@ -114,6 +114,9 @@ func verify(dest string) error {
 		return fmt.Errorf("walking %s: %w", dest, err)
 	}
 
-	terminal.Success(fmt.Sprintf("ok: %s is up to date (%d JSON file(s), including %s)\n", dest, count, sampleFile))
+	fmt.Println(terminal.Success(fmt.Sprintf(
+		"%s is up to date (%d JSON file(s), including %s)",
+		dest, count, sampleFile,
+	)))
 	return nil
 }

@@ -44,6 +44,13 @@ func runScan(args []string) {
 		"Report output path",
 	)
 
+	fs.IntVar(
+		&config.Threads,
+		"threads",
+		0,
+		"Number of concurrent workers (0 = defaults)",
+	)
+
 	if err := fs.Parse(args); err != nil {
 		os.Exit(1)
 	}
@@ -91,8 +98,7 @@ func startScan(config ScanConfig) {
 
 	// Phase 1: Service and technology discovery.
 	terminal.ColoredPrintln(terminal.BrightBlue, "[1/4] Service Discovery")
-	discoveryResult, err := discovery.Run(config.Target)
-
+	discoveryResult, err := discovery.RunWithWorkers(config.Target, config.Threads)
 	if err != nil {
 		terminal.ColoredError("Discovery failed:", err)
 		return
@@ -123,10 +129,11 @@ func startScan(config ScanConfig) {
 	)
 	defer stop()
 
-	findings, assessErr := checks.Run(
+	findings, assessErr := checks.RunWithWorkers(
 		ctx,
 		config.Target,
 		result.Services,
+		config.Threads,
 	)
 	if assessErr != nil {
 		terminal.ColoredError("General vulnerability assessment failed:", assessErr)
@@ -161,15 +168,17 @@ func generateReport(config *ScanConfig, result *models.ScanResult) {
 		default:
 		}
 	}
-	reporter.GenerateReport(config.Output, config.Format, result)
-	technologyCount := 0
-
-	for _, service := range result.Services {
-		for _, _ = range service.Technologies {
-			technologyCount++
-
-		}
+	if !reporter.GenerateReport(config.Output, config.Format, result) {
+		return
 	}
+	if config.Output != "" {
+		terminal.ColoredInfo("Report written to", config.Output)
+	}
+	technologyCount := 0
+	for _, service := range result.Services {
+		technologyCount += len(service.Technologies)
+	}
+
 	terminal.ColoredInfo("Scan Summary:")
 	terminal.ColoredPrintf(terminal.Green, fmt.Sprintf("* Discovered services:\t\t%v\n", len(result.Services)))
 	terminal.ColoredPrintf(terminal.Green, fmt.Sprintf("* Identified technologies:\t%v\n", technologyCount))

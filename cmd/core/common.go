@@ -76,13 +76,22 @@ func validateTarget(target string) error {
 	return nil
 }
 func findFile(dir, filename string) (string, error) {
+	filename = strings.TrimSpace(filename)
+	if filename == "" {
+		return "", fmt.Errorf("file name cannot be empty")
+	}
+	filename = filepath.Base(filename)
+	if !strings.HasSuffix(strings.ToLower(filename), ".json") {
+		filename += ".json"
+	}
+
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return "", err
 	}
 
 	for _, entry := range entries {
-		if !entry.IsDir() && entry.Name() == filename {
+		if !entry.IsDir() && strings.EqualFold(entry.Name(), filename) {
 			return filepath.Join(dir, entry.Name()), nil
 		}
 	}

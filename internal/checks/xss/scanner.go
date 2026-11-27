@@ -97,6 +97,12 @@ func Assess(ctx context.Context, target string, cfg Config) ([]models.Finding, e
 		if len(u.Query()) > 0 {
 			results = append(results, s.testURL(ctx, u)...)
 		}
+		// GET forms are tested too (same as the SQLi check).
+		for _, formURL := range crawl.ExtractGETForms(u, body) {
+			if len(formURL.Query()) > 0 {
+				results = append(results, s.testURL(ctx, formURL)...)
+			}
+		}
 		return nil
 	})
 	if err != nil {

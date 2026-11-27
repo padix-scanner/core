@@ -10,14 +10,13 @@ const (
 )
 
 type ScanConfig struct {
-	Target string
-	Format string
-	Output string
+	Target  string
+	Format  string
+	Output  string
+	Threads int // 0 = use package defaults
 }
 type AttCVEConfig struct {
 	Target string
 	// Format string
 	Cve string
 }
-
-
