@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"core/internal/checks/crawl"
 	"core/internal/httpx"
 	"core/pkg/constants"
 	"core/pkg/models"
@@ -21,22 +22,16 @@ const (
 	maxParams    = 8
 )
 
-var (
-	hrefRE    = regexp.MustCompile(`(?is)<a\b[^>]*\bhref\s*=\s*["']([^"'#]+)["']`)
-	formRE    = regexp.MustCompile(`(?is)<form\b([^>]*)>(.*?)</form\s*>`)
-	inputRE   = regexp.MustCompile(`(?is)<input\b([^>]*)>`)
-	attrRE    = regexp.MustCompile(`(?is)([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*["']([^"']*)["']`)
-	sqlErrors = []*regexp.Regexp{
-		regexp.MustCompile(`(?i)SQL syntax.*MySQL`),
-		regexp.MustCompile(`(?i)mysql_fetch|mysqli?_`),
-		regexp.MustCompile(`(?i)You have an error in your SQL syntax`),
-		regexp.MustCompile(`(?i) PostgreSQL.*ERROR|ERROR:\s+syntax error`),
-		regexp.MustCompile(`(?i)Microsoft SQL Server|ODBC SQL Server Driver`),
-		regexp.MustCompile(`(?i)Unclosed quotation mark after the character string`),
-		regexp.MustCompile(`(?i)ORA-\d{5}`),
-		regexp.MustCompile(`(?i)SQLite/JDBCDriver|SQLite.Exception|SQLITE_ERROR`),
-	}
-)
+var sqlErrors = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)SQL syntax.*MySQL`),
+	regexp.MustCompile(`(?i)mysql_fetch|mysqli?_`),
+	regexp.MustCompile(`(?i)You have an error in your SQL syntax`),
+	regexp.MustCompile(`(?i) PostgreSQL.*ERROR|ERROR:\s+syntax error`),
+	regexp.MustCompile(`(?i)Microsoft SQL Server|ODBC SQL Server Driver`),
+	regexp.MustCompile(`(?i)Unclosed quotation mark after the character string`),
+	regexp.MustCompile(`(?i)ORA-\d{5}`),
+	regexp.MustCompile(`(?i)SQLite/JDBCDriver|SQLite.Exception|SQLITE_ERROR`),
+}
 
 // Config bounds the active assessment. Only same-origin HTTP GET requests are sent.
 type Config struct {
@@ -61,11 +56,9 @@ type response struct {
 }
 
 type scanner struct {
-	client   *http.Client
-	cfg      Config
-	origin   *url.URL
-	visited  map[string]struct{}
-	findings map[string]struct{}
+	client *http.Client
+	cfg    Config
+	origin *url.URL
 }
 
 func Assess(ctx context.Context, target string, cfg Config) ([]models.Finding, error) {
@@ -99,58 +92,40 @@ func Assess(ctx context.Context, target string, cfg Config) ([]models.Finding, e
 
 	// The CLI caller must only invoke active checks for an explicitly authorized target.
 	s := &scanner{
-		cfg: cfg, origin: origin,
-		visited:  make(map[string]struct{}),
-		findings: make(map[string]struct{}),
+		cfg:    cfg,
+		origin: origin,
 		client: httpx.NewClient(cfg.Timeout, func(next *url.URL) bool {
-			return isSameOrigin(next, origin)
+			return crawl.SameOrigin(next, origin)
 		}),
 	}
 	defer s.client.CloseIdleConnections()
 
-	queue := []*url.URL{origin}
 	var results []models.Finding
-	for len(queue) > 0 && len(s.visited) < cfg.MaxPages {
-		if err := ctx.Err(); err != nil {
-			return results, err
-		}
-		u := queue[0]
-		queue = queue[1:]
-		if !s.sameOrigin(u) {
-			continue
-		}
-		key := canonical(u)
-		if _, ok := s.visited[key]; ok {
-			continue
-		}
-		s.visited[key] = struct{}{}
-
+	err = crawl.Crawl(ctx, origin, cfg.MaxPages, s.fetch, func(u *url.URL, body string) error {
 		if len(u.Query()) > 0 {
 			results = append(results, s.testURL(ctx, u)...)
 		}
-
-		if err := ctx.Err(); err != nil {
-			return deduplicate(results), err
-		}
-		resp, err := s.get(ctx, u)
-		// Redirects inside the origin were already followed by the client; a 3xx
-		// here means the redirect leaves the origin, so there is nothing to crawl.
-		if err != nil || resp.status < 200 || resp.status >= 300 {
-			continue
-		}
-		for _, link := range extractLinks(resp.body) {
-			next := resolve(u, link)
-			if next != nil && s.sameOrigin(next) && len(s.visited)+len(queue) < cfg.MaxPages {
-				queue = append(queue, next)
-			}
-		}
-		for _, formURL := range extractGETForms(u, resp.body) {
+		for _, formURL := range crawl.ExtractGETForms(u, body) {
 			if len(formURL.Query()) > 0 {
 				results = append(results, s.testURL(ctx, formURL)...)
 			}
 		}
+		return nil
+	})
+	return deduplicate(results), err
+}
+
+// fetch is the crawl Fetcher. In-origin redirects were already followed by
+// the client; a remaining non-2xx means there is nothing to crawl.
+func (s *scanner) fetch(ctx context.Context, u *url.URL) (string, error) {
+	resp, err := s.get(ctx, u)
+	if err != nil {
+		return "", err
 	}
-	return deduplicate(results), nil
+	if resp.status < 200 || resp.status >= 300 {
+		return "", fmt.Errorf("non-2xx status: %d", resp.status)
+	}
+	return resp.body, nil
 }
 
 func (s *scanner) testURL(ctx context.Context, target *url.URL) []models.Finding {
@@ -210,7 +185,7 @@ func (s *scanner) testURL(ctx context.Context, target *url.URL) []models.Finding
 }
 
 func (s *scanner) get(ctx context.Context, u *url.URL) (response, error) {
-	if !s.sameOrigin(u) {
+	if !crawl.SameOrigin(u, s.origin) {
 		return response{}, fmt.Errorf("cross-origin request blocked")
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
@@ -228,96 +203,9 @@ func (s *scanner) get(ctx context.Context, u *url.URL) (response, error) {
 	return response{status: resp.StatusCode, body: string(body)}, err
 }
 
-func (s *scanner) sameOrigin(u *url.URL) bool {
-	return isSameOrigin(u, s.origin)
-}
-
-func isSameOrigin(u, origin *url.URL) bool {
-	return u != nil && strings.EqualFold(u.Scheme, origin.Scheme) &&
-		strings.EqualFold(u.Host, origin.Host) && u.User == nil
-}
-
-func extractLinks(body string) []string {
-	matches := hrefRE.FindAllStringSubmatch(body, 50)
-	out := make([]string, 0, len(matches))
-	for _, m := range matches {
-		out = append(out, m[1])
-	}
-	return out
-}
-
-func extractGETForms(page *url.URL, body string) []*url.URL {
-	var out []*url.URL
-	for _, form := range formRE.FindAllStringSubmatch(body, 20) {
-		attrs := attributes(form[1])
-		if method := strings.ToUpper(attrs["method"]); method != "" && method != http.MethodGet {
-			continue // POST/PUT forms are deliberately not submitted.
-		}
-
-		// Never mutate the page URL: it is shared with the crawl loop, and
-		// setting RawQuery on it would leak this form's fields into every
-		// later form (and into the page URL itself).
-		action := cloneURL(page)
-		if raw := attrs["action"]; raw != "" {
-			action = resolve(page, raw) // returns a fresh URL
-		}
-		if action == nil {
-			continue
-		}
-
-		// A GET form replaces the action's query string with its own fields
-		// (browser behaviour), so start from an empty set instead of
-		// inheriting the page's query.
-		q := url.Values{}
-		for _, input := range inputRE.FindAllStringSubmatch(form[2], 50) {
-			a := attributes(input[1])
-			name := a["name"]
-			if name == "" || strings.EqualFold(a["type"], "submit") || strings.EqualFold(a["type"], "button") {
-				continue
-			}
-			if _, exists := q[name]; !exists {
-				q.Set(name, a["value"])
-			}
-		}
-		action.RawQuery = q.Encode()
-		action.Fragment = ""
-		if len(q) > 0 {
-			out = append(out, action)
-		}
-	}
-	return out
-}
-
-func attributes(raw string) map[string]string {
-	out := make(map[string]string)
-	for _, m := range attrRE.FindAllStringSubmatch(raw, -1) {
-		out[strings.ToLower(m[1])] = m[2]
-	}
-	return out
-}
-
-func resolve(base *url.URL, raw string) *url.URL {
-	ref, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil {
-		return nil
-	}
-	u := base.ResolveReference(ref)
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return nil
-	}
-	u.Fragment = ""
-	return u
-}
-
 func cloneURL(u *url.URL) *url.URL {
 	v := *u
 	return &v
-}
-
-func canonical(u *url.URL) string {
-	v := cloneURL(u)
-	v.Fragment = ""
-	return v.String()
 }
 
 func databaseError(body string) bool {
