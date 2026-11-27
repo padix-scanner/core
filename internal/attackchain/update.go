@@ -1,6 +1,7 @@
 package attackchain
 
 import (
+	"core/internal/terminal"
 	"core/pkg/constants"
 	"fmt"
 	"os"
@@ -10,7 +11,7 @@ import (
 
 const (
 	defaultRepoURL = "https://github.com/padix-scanner/exploit_cves"
-	defaultBranch = "master"
+	defaultBranch  = "master"
 	// sampleFile is a file we know ships in the repo; its presence after
 	// clone/pull is used as a sanity check that we actually got the data.
 	sampleFile = "CVE-2024-11236.json"
@@ -113,6 +114,6 @@ func verify(dest string) error {
 		return fmt.Errorf("walking %s: %w", dest, err)
 	}
 
-	fmt.Printf("ok: %s is up to date (%d JSON file(s), including %s)\n", dest, count, sampleFile)
+	terminal.Success(fmt.Sprintf("ok: %s is up to date (%d JSON file(s), including %s)\n", dest, count, sampleFile))
 	return nil
 }

@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -83,7 +84,7 @@ func startSimulation(config AttCVEConfig) {
 	// =>find cve file
 	cveJsonFile, err := findFile(constants.DefaultExploitCVECacheDir, config.Cve)
 	if err != nil {
-		terminal.ColoredError("not found such cve details: ", config.Cve)
+		terminal.ColoredError("not found such cve details: ",filepath.Join(constants.DefaultExploitCVECacheDir, config.Cve))
 		os.Exit(1)
 	}
 

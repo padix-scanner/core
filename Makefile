@@ -33,6 +33,9 @@ scan:
 db:
 	$(GO) run $(MODULE) db $(ARGS)
 
+attcve:
+	$(GO) run $(MODULE) attcve $(ARGS)
+
 ## Test
 
 test:
