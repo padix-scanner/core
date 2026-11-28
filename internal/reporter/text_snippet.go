@@ -10,6 +10,8 @@ func displayFindingCategory(category string) string {
 		return "OSINT / Google Dorks"
 	case "wordpress":
 		return "WordPress"
+	case "sensitive-files":
+		return "Sensitive Files"
 	default:
 		return category
 	}
